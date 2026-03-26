@@ -464,6 +464,16 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     }
   }
 
+  function disconnect() {
+    dataSource.value = null
+    health.value = null
+    status.value = createStatusMessage(
+      'info',
+      'Disconnected',
+      'Disconnected from InfluxDB. Current explorer state remains visible.',
+    )
+  }
+
   async function selectBucket(bucketName: string) {
     selectedBucket.value = bucketName
     connection.bucket = bucketName
@@ -879,6 +889,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     isQueryRunning,
     loadLocalDemoPreset,
     connect,
+    disconnect,
     selectBucket,
     selectMeasurement,
     refreshSchema,

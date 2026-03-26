@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 
-import { NCard, NTag } from 'naive-ui'
+import { NAlert, NButton, NCard, NTag } from 'naive-ui'
 
 import { useInfluxWorkbench } from '@/composables/useInfluxWorkbench'
 import ConnectionPanel from '@/components/workbench/ConnectionPanel.vue'
@@ -9,6 +9,7 @@ import ExplorerPanel from '@/components/workbench/ExplorerPanel.vue'
 import ResultPanel from '@/components/workbench/ResultPanel.vue'
 import type { InfluxConnectionConfig } from '@/services/influx/types'
 import type { InfluxWorkbenchSectionKey } from '@/components/workbench/types'
+import type { StatusMessage } from '@/services/influx/types'
 
 const props = withDefaults(
   defineProps<{
@@ -42,14 +43,62 @@ const showExplorerPanel = computed(
 const showResultPanel = computed(
   () => !props.hiddenSections.includes('results'),
 )
+const isConnectionOverlayOpen = ref(showConnectionPanel.value)
+const floatingStatus = ref<StatusMessage | null>(null)
 const shouldAutoConnect = computed(
   () =>
     props.autoConnect ||
     (!showConnectionPanel.value && Boolean(props.initialConnection)),
 )
 const showConnectionOverlay = computed(
-  () => showConnectionPanel.value && !workbench.hasConnection.value,
+  () =>
+    showConnectionPanel.value &&
+    !workbench.hasConnection.value &&
+    isConnectionOverlayOpen.value,
 )
+
+watch(
+  () => workbench.hasConnection.value,
+  (connected) => {
+    if (connected) {
+      isConnectionOverlayOpen.value = false
+    }
+  },
+)
+
+watch(
+  () =>
+    `${workbench.status.value.type}:${workbench.status.value.title}:${workbench.status.value.message}`,
+  (_nextValue, _previousValue, onCleanup) => {
+    if (workbench.status.value.title === 'Ready to connect') {
+      return
+    }
+
+    floatingStatus.value = { ...workbench.status.value }
+
+    const timeoutId = window.setTimeout(() => {
+      floatingStatus.value = null
+    }, 3000)
+
+    onCleanup(() => window.clearTimeout(timeoutId))
+  },
+)
+
+function openConnectionOverlay() {
+  if (showConnectionPanel.value) {
+    isConnectionOverlayOpen.value = true
+  }
+}
+
+function handleConnectionButton() {
+  if (workbench.hasConnection.value) {
+    workbench.disconnect()
+    isConnectionOverlayOpen.value = false
+    return
+  }
+
+  openConnectionOverlay()
+}
 
 async function initializeWorkbench() {
   if (props.initialConnection) {
@@ -78,7 +127,7 @@ onMounted(async () => {
   <div class="workbench-shell">
     <NCard v-if="showHero" class="hero-card" :bordered="false">
       <div class="hero-copy">
-        <div>
+        <div class="hero-copy-main">
           <div class="hero-topline">
             <NTag round size="small" type="success">Single-page explorer</NTag>
             <NTag
@@ -91,6 +140,9 @@ onMounted(async () => {
                   : 'Connection required'
               }}
             </NTag>
+            <NButton size="small" secondary @click="handleConnectionButton()">
+              {{ workbench.hasConnection.value ? 'Disconnect' : 'Connect' }}
+            </NButton>
           </div>
           <h1 class="hero-title">{{ title }}</h1>
           <p class="hero-subtitle">{{ subtitle }}</p>
@@ -122,6 +174,18 @@ onMounted(async () => {
         </NCard>
       </div>
     </div>
+
+    <transition name="floating-status">
+      <NAlert
+        v-if="floatingStatus"
+        class="floating-status"
+        :title="floatingStatus.title"
+        :type="floatingStatus.type"
+        :bordered="false"
+      >
+        {{ floatingStatus.message }}
+      </NAlert>
+    </transition>
   </div>
 </template>
 
@@ -153,8 +217,16 @@ onMounted(async () => {
     );
 }
 
+.hero-copy-main {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .hero-topline {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 14px;
 }
@@ -216,6 +288,28 @@ onMounted(async () => {
   width: min(680px, 100%);
   border-radius: 26px;
   box-shadow: 0 28px 90px rgba(15, 23, 42, 0.16);
+}
+
+.floating-status {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 30;
+  width: min(420px, calc(100vw - 32px));
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+}
+
+.floating-status-enter-active,
+.floating-status-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.floating-status-enter-from,
+.floating-status-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 @media (max-width: 1200px) {

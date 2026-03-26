@@ -10,9 +10,6 @@ import {
   NFlex,
   NForm,
   NFormItem,
-  NGi,
-  NGrid,
-  NInput,
   NInputNumber,
   NSelect,
   NSpin,
@@ -34,12 +31,19 @@ const props = defineProps<{
 
 const isQueryView = ref(false)
 
-const bucketOptions = computed(() =>
-  props.workbench.buckets.value.map((bucket) => ({
-    label: bucket.name,
-    value: bucket.name,
-  })),
-)
+const aggregateWindowOptions = [
+  '1m',
+  '5m',
+  '15m',
+  '30m',
+  '1h',
+  '6h',
+  '12h',
+  '1d',
+].map((value) => ({
+  label: value,
+  value,
+}))
 
 const queryText = computed(() =>
   props.workbench.queryMode.value === 'raw'
@@ -153,6 +157,10 @@ function updateCustomRange(value: [number, number] | null) {
   props.workbench.customStop.value = new Date(value[1]).toISOString()
 }
 
+function updateAggregateWindow(value: string | number | null) {
+  props.workbench.aggregateWindow.value = String(value ?? '')
+}
+
 function updateQuerySwitch(value: boolean) {
   isQueryView.value = value
 
@@ -176,9 +184,13 @@ function updateQueryText(event: Event) {
           <template #checked>Query</template>
           <template #unchecked>Explorer</template>
         </NSwitch>
-        <NButton tertiary @click="workbench.refreshSchema()"
-          >Refresh schema</NButton
+        <NButton
+          tertiary
+          :disabled="!workbench.hasConnection.value"
+          @click="workbench.refreshSchema()"
         >
+          Refresh schema
+        </NButton>
         <NButton
           type="primary"
           :disabled="!workbench.canRunQuery.value"
@@ -190,65 +202,61 @@ function updateQueryText(event: Event) {
       </NFlex>
     </div>
 
-    <div class="settings-shell">
+    <div v-if="!isQueryView" class="settings-shell">
       <NForm label-placement="top">
-        <NGrid :cols="5" :x-gap="12">
-          <NGi :span="1">
-            <NFormItem label="Range preset">
-              <NSelect
-                :value="workbench.rangePreset.value"
-                :options="workbench.rangePresetOptions"
-                @update:value="updateRangePreset"
-              />
-            </NFormItem>
-          </NGi>
+        <div class="settings-row">
+          <NFormItem label="Range preset" class="setting-item preset-item">
+            <NSelect
+              :value="workbench.rangePreset.value"
+              :options="workbench.rangePresetOptions"
+              @update:value="updateRangePreset"
+            />
+          </NFormItem>
 
-          <NGi :span="2">
-            <NFormItem label="Datetime range">
-              <NDatePicker
-                clearable
-                type="datetimerange"
-                :value="customRangeValue"
-                @update:value="
-                  (value) => updateCustomRange(value as [number, number] | null)
-                "
-              />
-            </NFormItem>
-          </NGi>
+          <NFormItem
+            v-if="workbench.rangePreset.value === 'custom'"
+            label="Datetime range"
+            class="setting-item range-item"
+          >
+            <NDatePicker
+              clearable
+              type="datetimerange"
+              :value="customRangeValue"
+              @update:value="
+                (value) => updateCustomRange(value as [number, number] | null)
+              "
+            />
+          </NFormItem>
 
-          <NGi :span="1">
-            <NFormItem label="Aggregate fn">
-              <NSelect
-                :value="workbench.aggregateFunction.value"
-                :options="workbench.aggregateFunctionOptions"
-                @update:value="updateAggregateFunction"
-              />
-            </NFormItem>
-          </NGi>
+          <NFormItem label="Aggregate fn" class="setting-item">
+            <NSelect
+              :value="workbench.aggregateFunction.value"
+              :options="workbench.aggregateFunctionOptions"
+              @update:value="updateAggregateFunction"
+            />
+          </NFormItem>
 
-          <NGi :span="1">
-            <NFormItem label="Row limit">
-              <NInputNumber
-                :value="workbench.limit.value"
-                :min="100"
-                :step="100"
-                placeholder="2000"
-                @update:value="
-                  (value) => (workbench.limit.value = value ?? 2000)
-                "
-              />
-            </NFormItem>
-          </NGi>
+          <NFormItem label="Aggregate window" class="setting-item">
+            <NSelect
+              filterable
+              tag
+              :value="workbench.aggregateWindow.value"
+              :options="aggregateWindowOptions"
+              placeholder="15m"
+              @update:value="updateAggregateWindow"
+            />
+          </NFormItem>
 
-          <NGi :span="5">
-            <NFormItem label="Aggregate window">
-              <NInput
-                v-model:value="workbench.aggregateWindow.value"
-                placeholder="15m or empty"
-              />
-            </NFormItem>
-          </NGi>
-        </NGrid>
+          <NFormItem label="Row limit" class="setting-item">
+            <NInputNumber
+              :value="workbench.limit.value"
+              :min="100"
+              :step="100"
+              placeholder="2000"
+              @update:value="(value) => (workbench.limit.value = value ?? 2000)"
+            />
+          </NFormItem>
+        </div>
       </NForm>
     </div>
 
@@ -288,19 +296,6 @@ function updateQueryText(event: Event) {
           :count="workbench.measurements.value.length"
           count-type="info"
         >
-          <template #actions>
-            <NSelect
-              :value="workbench.selectedBucket.value"
-              :options="bucketOptions"
-              size="small"
-              placeholder="Bucket"
-              class="stage-select"
-              @update:value="
-                (value) => workbench.selectBucket(String(value ?? ''))
-              "
-            />
-          </template>
-
           <template #default>
             <div
               v-if="workbench.measurements.value.length > 0"
@@ -460,6 +455,27 @@ function updateQueryText(event: Event) {
   background: rgba(255, 255, 255, 0.84);
 }
 
+.settings-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: nowrap;
+}
+
+.setting-item {
+  min-width: 0;
+  flex: 1 1 180px;
+  margin-bottom: 0;
+}
+
+.preset-item {
+  flex-basis: 180px;
+}
+
+.range-item {
+  flex: 1.5 1 360px;
+}
+
 .flow-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -510,12 +526,8 @@ function updateQueryText(event: Event) {
 
 .item-meta {
   margin-top: 4px;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   color: rgba(71, 85, 105, 0.84);
-}
-
-.stage-select {
-  width: 150px;
 }
 
 .checkbox-item {
@@ -581,6 +593,10 @@ function updateQueryText(event: Event) {
   .flow-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .settings-row {
+    flex-wrap: wrap;
+  }
 }
 
 @media (max-width: 960px) {
@@ -589,16 +605,6 @@ function updateQueryText(event: Event) {
     align-items: stretch;
   }
 
-  .flow-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .stage-select {
-    width: 100px;
-  }
-}
-
-@media (max-width: 720px) {
   .flow-grid {
     grid-template-columns: 1fr;
   }

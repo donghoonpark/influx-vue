@@ -2,14 +2,11 @@
 import { computed, ref, watch } from 'vue'
 
 import {
-  NAlert,
   NButton,
   NCard,
   NEmpty,
   NFlex,
-  NGi,
-  NGrid,
-  NStatistic,
+  NPopover,
   NTabPane,
   NTabs,
   NTag,
@@ -114,47 +111,47 @@ function dashboardRows(panelId: string) {
     <div class="panel-header">
       <h2 class="panel-title">ResultPanel</h2>
 
-      <NFlex :size="8">
+      <NFlex :size="8" align="center">
         <NTag type="info">{{
           workbench.selectedBucket.value || 'bucket pending'
         }}</NTag>
         <NTag type="success">
           {{ workbench.selectedMeasurement.value || 'measurement pending' }}
         </NTag>
+        <NPopover trigger="hover">
+          <template #trigger>
+            <NButton quaternary size="small">Status</NButton>
+          </template>
+          <div class="popover-content">
+            <strong>{{ workbench.status.value.title }}</strong>
+            <p>{{ workbench.status.value.message }}</p>
+          </div>
+        </NPopover>
+        <NPopover trigger="hover">
+          <template #trigger>
+            <NButton quaternary size="small">Stats</NButton>
+          </template>
+          <div class="popover-content stats-popover">
+            <div class="stat-row">
+              <span>Rows</span>
+              <strong>{{ workbench.summary.value.rowCount }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>Series</span>
+              <strong>{{ workbench.summary.value.seriesCount }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>Dashboard panels</span>
+              <strong>{{ workbench.dashboardPanels.value.length }}</strong>
+            </div>
+            <div class="stat-row">
+              <span>Selected fields</span>
+              <strong>{{ workbench.selectedFields.value.length }}</strong>
+            </div>
+          </div>
+        </NPopover>
       </NFlex>
     </div>
-
-    <NAlert
-      :title="workbench.status.value.title"
-      :type="workbench.status.value.type"
-      :bordered="false"
-    >
-      {{ workbench.status.value.message }}
-    </NAlert>
-
-    <NGrid :cols="4" :x-gap="12" :y-gap="12">
-      <NGi>
-        <NStatistic label="Rows" :value="workbench.summary.value.rowCount" />
-      </NGi>
-      <NGi>
-        <NStatistic
-          label="Series"
-          :value="workbench.summary.value.seriesCount"
-        />
-      </NGi>
-      <NGi>
-        <NStatistic
-          label="Dashboard panels"
-          :value="workbench.dashboardPanels.value.length"
-        />
-      </NGi>
-      <NGi>
-        <NStatistic
-          label="Selected fields"
-          :value="workbench.selectedFields.value.length"
-        />
-      </NGi>
-    </NGrid>
 
     <NTabs v-model:value="resultTab" type="line" animated>
       <NTabPane name="chart" tab="Chart">
@@ -331,6 +328,28 @@ function dashboardRows(panelId: string) {
 
 .code-editor:focus {
   outline: none;
+}
+
+.popover-content {
+  min-width: 200px;
+}
+
+.popover-content p {
+  margin: 6px 0 0;
+  color: rgba(71, 85, 105, 0.88);
+}
+
+.stats-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .dashboard-empty {
