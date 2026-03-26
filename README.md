@@ -1,35 +1,154 @@
 # Influx Vue
 
-`Influx Vue`는 Vue 3 + TypeScript + Naive UI 기반으로 InfluxDB를 연결하고, `bucket -> measurement -> field/tag -> tag value` 흐름으로 탐색하고, Flux 쿼리를 작성하고, 결과를 테이블과 차트로 시각화하기 위한 컴포넌트 프로젝트입니다.
+`influx-vue` is a Vue 3 + TypeScript workbench for exploring InfluxDB, building Flux queries, and turning results into charts, tables, and YAML-backed dashboards.
 
-## Current focus
+## Try The Sample Page
 
-- Reusable `InfluxWorkbench` component
-- Local demo app powered by Vite
-- Unit tests for query and state logic
-- Real InfluxDB container integration tests
-
-## Development
+The quickest way to understand the project is to run the sample page first.
 
 ```bash
 pnpm install
-pnpm dev
-```
-
-## Local demo InfluxDB
-
-```bash
 pnpm db:up
 pnpm db:seed
 pnpm dev
 ```
 
-기본 로컬 연결값은 아래와 같습니다.
+Open the Vite app URL shown in the terminal, then connect with the seeded demo config:
 
 - `URL`: `http://127.0.0.1:8086`
 - `Org`: `influx-vue`
 - `Bucket`: `demo-metrics`
 - `Token`: `influx-vue-admin-token`
+
+The local sample page starts with:
+
+- 4 seeded buckets: `demo-metrics`, `edge-sensors`, `payments-stream`, `api-latency`
+- synthetic 10 Hz sample data
+- bucket -> measurement -> field -> tag exploration
+- Flux editor mode
+- chart, table, YAML, and dashboard views
+
+If you want a one-command reset for the demo database:
+
+```bash
+pnpm db:down
+pnpm db:up
+pnpm db:seed
+```
+
+## What It Does
+
+- Explore InfluxDB schema from the UI instead of typing Flux from scratch.
+- Switch between guided explorer mode and raw query mode.
+- Save the current query state as YAML.
+- Rehydrate YAML into a dashboard layout with multiple panels.
+- Run against a real InfluxDB container in integration tests.
+
+## Install
+
+If you are evaluating the project today, start with the sample page above.
+When you package or publish it for reuse, the intended consumer-facing install is:
+
+```bash
+pnpm add influx-vue
+```
+
+```ts
+import { InfluxWorkbench } from 'influx-vue'
+import 'influx-vue/style.css'
+```
+
+## Basic Usage
+
+```vue
+<script setup lang="ts">
+import { InfluxWorkbench } from 'influx-vue'
+
+const initialConnection = {
+  url: 'http://127.0.0.1:8086',
+  org: 'influx-vue',
+  token: 'influx-vue-admin-token',
+  bucket: 'demo-metrics',
+}
+
+function handleConnectError(payload: {
+  phase: 'validation' | 'ping' | 'schema'
+  error: Error
+}) {
+  console.error(payload.phase, payload.error.message)
+}
+</script>
+
+<template>
+  <InfluxWorkbench
+    :initial-connection="initialConnection"
+    auto-connect
+    @connect-error="handleConnectError"
+  />
+</template>
+```
+
+## Public Component API
+
+### Props
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `initialConnection` | `Partial<InfluxConnectionConfig>` | Prefills the connection form before the user connects. |
+| `autoConnect` | `boolean` | Attempts to connect on mount. |
+| `autoRunQuery` | `boolean` | Runs the current query after a successful auto-connect. |
+| `hiddenSections` | `InfluxWorkbenchSectionKey[]` | Hides top-level UI sections such as `hero`, `connection`, `explorer`, `results`. |
+| `createDataSource` | `(config) => InfluxExplorerDataSource` | Advanced override for custom transports or proxy-backed integrations. |
+
+### Events
+
+| Event | Payload | Description |
+| --- | --- | --- |
+| `connect` | `{ connection, health, bucketCount }` | Fired after a successful connection and bucket load. |
+| `connect-error` | `{ error, connection, phase }` | Fired when validation, ping, or schema loading fails. |
+| `disconnect` | `{ connection }` | Fired when the workbench disconnects. |
+
+### Exposed Methods
+
+You can drive the workbench imperatively via a template ref.
+
+```vue
+<script setup lang="ts">
+import { ref } from 'vue'
+import {
+  InfluxWorkbench,
+  type InfluxWorkbenchExposed,
+} from 'influx-vue'
+
+const workbenchRef = ref<InfluxWorkbenchExposed | null>(null)
+
+async function reconnectToSensors() {
+  workbenchRef.value?.applyConnection({
+    bucket: 'edge-sensors',
+  })
+
+  await workbenchRef.value?.connect()
+}
+</script>
+
+<template>
+  <InfluxWorkbench ref="workbenchRef" />
+</template>
+```
+
+Available methods:
+
+- `applyConnection(connection)`
+- `connect()`
+- `disconnect()`
+- `runQuery()`
+
+## Local Development
+
+```bash
+pnpm install
+pnpm dev
+```
 
 ## Build
 
@@ -44,4 +163,15 @@ pnpm test:unit
 pnpm test:integration
 ```
 
-`test:integration`은 실제 InfluxDB 컨테이너를 띄운 뒤 schema 탐색과 Flux 실행을 검증합니다. `colima` 환경에서는 자동으로 `~/.colima/docker.sock`를 감지해 사용합니다.
+Notes:
+
+- `test:integration` starts a real InfluxDB container with seeded sample data.
+- The integration setup works with Docker and also supports local `colima` setups.
+
+## Repository Layout
+
+- [`src/components/InfluxWorkbench.vue`](src/components/InfluxWorkbench.vue): public workbench component
+- [`src/composables/useInfluxWorkbench.ts`](src/composables/useInfluxWorkbench.ts): state and orchestration logic
+- [`src/demo/App.vue`](src/demo/App.vue): sample page entry
+- [`scripts/seed-influx.mts`](scripts/seed-influx.mts): local demo seeding
+- [`tests/integration/influxExplorer.integration.spec.ts`](tests/integration/influxExplorer.integration.spec.ts): container-backed integration coverage
