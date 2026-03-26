@@ -18,31 +18,70 @@ const chartSeries = computed(() => rowsToChartSeries(props.rows))
 const option = computed<EChartsOption>(() => ({
   animation: false,
   legend: {
-    top: 0,
+    top: 4,
+    left: 8,
+    right: 8,
     type: 'scroll',
+    itemWidth: 10,
+    itemHeight: 7,
+    itemGap: 10,
+    textStyle: {
+      fontSize: 11,
+    },
   },
   tooltip: {
     trigger: 'axis',
   },
   grid: {
-    top: 64,
-    left: 56,
-    right: 20,
-    bottom: 72,
+    top: 38,
+    left: 40,
+    right: 12,
+    bottom: 42,
+    containLabel: true,
   },
   xAxis: {
     type: 'time',
+    axisLabel: {
+      hideOverlap: true,
+      margin: 10,
+    },
+    axisTick: {
+      show: false,
+    },
   },
   yAxis: {
     type: 'value',
     scale: true,
+    axisLabel: {
+      margin: 8,
+    },
+    axisTick: {
+      show: false,
+    },
+    splitLine: {
+      lineStyle: {
+        opacity: 0.35,
+      },
+    },
   },
-  dataZoom: [{ type: 'inside' }, { type: 'slider', height: 24, bottom: 20 }],
+  dataZoom: [
+    { type: 'inside' },
+    {
+      type: 'slider',
+      height: 14,
+      bottom: 8,
+      borderColor: 'transparent',
+      moveHandleSize: 0,
+    },
+  ],
   series: chartSeries.value.map((series) => ({
     type: 'line',
     name: series.name,
     showSymbol: false,
     smooth: true,
+    lineStyle: {
+      width: 1.8,
+    },
     emphasis: {
       focus: 'series',
     },
@@ -63,11 +102,11 @@ const option = computed<EChartsOption>(() => ({
 
 <style scoped>
 .chart-shell {
-  min-height: 420px;
+  min-height: 380px;
 }
 
 .chart {
-  height: 420px;
+  height: 380px;
   width: 100%;
 }
 </style>
