@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
-import { AnalyticsOutline } from '@vicons/ionicons5'
-import { NAlert, NButton, NCard, NTag } from 'naive-ui'
+import {
+  AnalyticsOutline,
+  InformationCircleOutline,
+  StatsChartOutline,
+} from '@vicons/ionicons5'
+import { NAlert, NButton, NCard, NFlex, NPopover, NTag } from 'naive-ui'
 
 import { useInfluxWorkbench } from '@/composables/useInfluxWorkbench'
 import ConnectionPanel from '@/components/workbench/ConnectionPanel.vue'
@@ -100,23 +104,71 @@ onMounted(async () => {
   <div class="workbench-shell">
     <NCard v-if="showHero" class="hero-card" :bordered="false">
       <div class="hero-topline">
-        <NButton
-          round
-          size="small"
-          secondary
-          strong
-          :render-icon="renderNaiveIcon(AnalyticsOutline)"
-        >
-          InfluxDB Explorer
-        </NButton>
-        <NTag
-          size="small"
-          :type="workbench.hasConnection.value ? 'success' : 'warning'"
-        >
-          {{
-            workbench.hasConnection.value ? 'Connected' : 'Connection required'
-          }}
-        </NTag>
+        <NFlex :size="8" align="center" wrap>
+          <NButton
+            round
+            size="small"
+            secondary
+            strong
+            :render-icon="renderNaiveIcon(AnalyticsOutline)"
+          >
+            InfluxDB Explorer
+          </NButton>
+          <NTag
+            size="small"
+            :type="workbench.hasConnection.value ? 'success' : 'warning'"
+          >
+            {{
+              workbench.hasConnection.value
+                ? 'Connected'
+                : 'Connection required'
+            }}
+          </NTag>
+          <NPopover trigger="hover">
+            <template #trigger>
+              <NButton
+                quaternary
+                size="small"
+                :render-icon="renderNaiveIcon(InformationCircleOutline)"
+              >
+                Status
+              </NButton>
+            </template>
+            <div class="popover-content">
+              <strong>{{ workbench.status.value.title }}</strong>
+              <p>{{ workbench.status.value.message }}</p>
+            </div>
+          </NPopover>
+          <NPopover trigger="hover">
+            <template #trigger>
+              <NButton
+                quaternary
+                size="small"
+                :render-icon="renderNaiveIcon(StatsChartOutline)"
+              >
+                Stats
+              </NButton>
+            </template>
+            <div class="popover-content stats-popover">
+              <div class="stat-row">
+                <span>Rows</span>
+                <strong>{{ workbench.summary.value.rowCount }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Series</span>
+                <strong>{{ workbench.summary.value.seriesCount }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Dashboard panels</span>
+                <strong>{{ workbench.dashboardPanels.value.length }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Selected fields</span>
+                <strong>{{ workbench.selectedFields.value.length }}</strong>
+              </div>
+            </div>
+          </NPopover>
+        </NFlex>
       </div>
     </NCard>
 
@@ -190,9 +242,30 @@ onMounted(async () => {
 .hero-topline {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  justify-content: space-between;
   min-height: 24px;
+}
+
+.popover-content {
+  min-width: 220px;
+}
+
+.popover-content p {
+  margin: 6px 0 0;
+  color: rgba(71, 85, 105, 0.88);
+}
+
+.stats-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .workspace {

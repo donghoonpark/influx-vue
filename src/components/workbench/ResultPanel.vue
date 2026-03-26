@@ -3,23 +3,12 @@ import { computed, ref, watch } from 'vue'
 
 import {
   DocumentTextOutline,
-  InformationCircleOutline,
   RefreshOutline,
   SaveOutline,
-  StatsChartOutline,
   GridOutline,
   OpenOutline,
 } from '@vicons/ionicons5'
-import {
-  NButton,
-  NCard,
-  NEmpty,
-  NFlex,
-  NPopover,
-  NTabPane,
-  NTabs,
-  NTag,
-} from 'naive-ui'
+import { NButton, NCard, NEmpty, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
@@ -126,50 +115,6 @@ function dashboardRows(panelId: string) {
         <NTag type="success">
           {{ workbench.selectedMeasurement.value || 'measurement pending' }}
         </NTag>
-        <NPopover trigger="hover">
-          <template #trigger>
-            <NButton
-              quaternary
-              size="small"
-              :render-icon="renderNaiveIcon(InformationCircleOutline)"
-            >
-              Status
-            </NButton>
-          </template>
-          <div class="popover-content">
-            <strong>{{ workbench.status.value.title }}</strong>
-            <p>{{ workbench.status.value.message }}</p>
-          </div>
-        </NPopover>
-        <NPopover trigger="hover">
-          <template #trigger>
-            <NButton
-              quaternary
-              size="small"
-              :render-icon="renderNaiveIcon(StatsChartOutline)"
-            >
-              Stats
-            </NButton>
-          </template>
-          <div class="popover-content stats-popover">
-            <div class="stat-row">
-              <span>Rows</span>
-              <strong>{{ workbench.summary.value.rowCount }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>Series</span>
-              <strong>{{ workbench.summary.value.seriesCount }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>Dashboard panels</span>
-              <strong>{{ workbench.dashboardPanels.value.length }}</strong>
-            </div>
-            <div class="stat-row">
-              <span>Selected fields</span>
-              <strong>{{ workbench.selectedFields.value.length }}</strong>
-            </div>
-          </div>
-        </NPopover>
       </NFlex>
     </div>
 
@@ -356,28 +301,6 @@ function dashboardRows(panelId: string) {
 
 .code-editor:focus {
   outline: none;
-}
-
-.popover-content {
-  min-width: 200px;
-}
-
-.popover-content p {
-  margin: 6px 0 0;
-  color: rgba(71, 85, 105, 0.88);
-}
-
-.stats-popover {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.stat-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
 }
 
 .dashboard-empty {
