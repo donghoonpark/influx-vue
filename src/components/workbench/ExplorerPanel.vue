@@ -18,7 +18,10 @@ import {
 } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
+import FluxCodeEditor from '@/components/workbench/FluxCodeEditor.vue'
 import ExplorerStagePanel from '@/components/workbench/ExplorerStagePanel.vue'
+import { AGGREGATE_FUNCTIONS } from '@/services/influx/flux'
+import type { FluxAutocompleteSchema } from '@/services/influx/fluxAutocomplete'
 import type {
   AggregateFunction,
   InfluxBucket,
@@ -56,6 +59,15 @@ const aggregateWindowOptions = [
 ].map((value) => ({
   label: value,
   value,
+}))
+
+const completionSchema = computed<FluxAutocompleteSchema>(() => ({
+  buckets: props.workbench.buckets.value.map((bucket) => bucket.name),
+  measurements: [...props.workbench.measurements.value],
+  fields: [...props.workbench.fieldKeys.value],
+  tagKeys: [...props.workbench.tagKeys.value],
+  tagValuesByKey: { ...props.workbench.tagValueOptions.value },
+  aggregateFunctions: AGGREGATE_FUNCTIONS,
 }))
 
 const queryText = computed(() =>
@@ -182,8 +194,8 @@ function updateQuerySwitch(value: boolean) {
   }
 }
 
-function updateQueryText(event: Event) {
-  props.workbench.updateQueryText((event.target as HTMLTextAreaElement).value)
+function updateQueryText(value: string) {
+  props.workbench.updateQueryText(value)
 }
 </script>
 
@@ -439,11 +451,11 @@ function updateQueryText(event: Event) {
               Reset from explorer
             </NButton>
           </div>
-          <textarea
-            class="code-editor"
-            :value="queryText"
+          <FluxCodeEditor
+            :model-value="queryText"
+            :completion-schema="completionSchema"
             placeholder="Switch back to explorer to define a query."
-            @input="updateQueryText"
+            @update:model-value="updateQueryText"
           />
         </div>
       </div>
@@ -586,25 +598,6 @@ function updateQueryText(event: Event) {
   justify-content: flex-end;
   padding: 8px 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-}
-
-.code-editor {
-  width: 100%;
-  min-height: 340px;
-  border: 0;
-  padding: 12px 14px;
-  resize: vertical;
-  background: transparent;
-  color: #e2e8f0;
-  font:
-    500 0.94rem/1.6 'SFMono-Regular',
-    'Consolas',
-    'Menlo',
-    monospace;
-}
-
-.code-editor:focus {
-  outline: none;
 }
 
 @media (max-width: 1400px) {
