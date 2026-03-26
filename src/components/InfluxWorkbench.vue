@@ -8,6 +8,7 @@ import {
   type InfluxWorkbenchController,
 } from '@/composables/useInfluxWorkbench'
 import WorkbenchConnectionPanel from '@/components/workbench/WorkbenchConnectionPanel.vue'
+import WorkbenchDashboardPanel from '@/components/workbench/WorkbenchDashboardPanel.vue'
 import WorkbenchExplorerPanel from '@/components/workbench/WorkbenchExplorerPanel.vue'
 import WorkbenchHeroPanel from '@/components/workbench/WorkbenchHeroPanel.vue'
 import WorkbenchQueryPanel from '@/components/workbench/WorkbenchQueryPanel.vue'
@@ -25,25 +26,29 @@ const STEP_DEFINITIONS: InfluxWorkbenchStepDefinition[] = [
   {
     key: 'connection',
     label: 'Connect',
-    description: 'Connect to InfluxDB and confirm the token can enumerate buckets.',
+    description:
+      'Connect to InfluxDB and confirm the token can enumerate buckets.',
     section: 'connection',
   },
   {
     key: 'explorer',
     label: 'Explorer',
-    description: 'Choose a bucket, then select a measurement and the fields you want to inspect.',
+    description:
+      'Choose a bucket, then select a measurement and the fields you want to inspect.',
     section: 'explorer',
   },
   {
     key: 'tags',
     label: 'Tags',
-    description: 'Optionally refine the selected measurement with tag keys and tag values.',
+    description:
+      'Optionally refine the selected measurement with tag keys and tag values.',
     section: 'tags',
   },
   {
     key: 'query',
     label: 'Query',
-    description: 'Tune time range and aggregation, then preview or edit the generated Flux.',
+    description:
+      'Tune time range and aggregation, then preview or edit the generated Flux.',
     section: 'query',
   },
   {
@@ -51,6 +56,13 @@ const STEP_DEFINITIONS: InfluxWorkbenchStepDefinition[] = [
     label: 'Results',
     description: 'Review table and chart output once the query has executed.',
     section: 'results',
+  },
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    description:
+      'Save the current query as YAML-backed panels and run them together in a Grafana-style grid.',
+    section: 'dashboard',
   },
 ]
 
@@ -97,8 +109,13 @@ const stepStatus = computed<Record<InfluxWorkbenchStepKey, boolean>>(() => ({
     Boolean(workbench.selectedBucket.value) &&
     Boolean(workbench.selectedMeasurement.value) &&
     workbench.selectedFields.value.length > 0,
-  query: workbench.hasExecutedQuery.value,
+  query:
+    workbench.hasConnection.value &&
+    Boolean(workbench.selectedBucket.value) &&
+    Boolean(workbench.selectedMeasurement.value) &&
+    workbench.selectedFields.value.length > 0,
   results: workbench.hasExecutedQuery.value,
+  dashboard: workbench.dashboardPanels.value.length > 0,
 }))
 
 function isStepEnabled(stepKey: InfluxWorkbenchStepKey) {
@@ -113,6 +130,8 @@ function isStepEnabled(stepKey: InfluxWorkbenchStepKey) {
       return stepStatus.value.explorer
     case 'results':
       return workbench.hasExecutedQuery.value
+    case 'dashboard':
+      return workbench.hasConnection.value
   }
 }
 
@@ -123,13 +142,16 @@ function stepComponent(stepKey: InfluxWorkbenchStepKey) {
     tags: WorkbenchTagFiltersPanel,
     query: WorkbenchQueryPanel,
     results: WorkbenchResultsPanel,
+    dashboard: WorkbenchDashboardPanel,
   }
 
   return components[stepKey]
 }
 
 const previousStep = computed(() => {
-  const index = visibleSteps.value.findIndex((step) => step.key === activeStep.value)
+  const index = visibleSteps.value.findIndex(
+    (step) => step.key === activeStep.value,
+  )
   if (index <= 0) {
     return null
   }
@@ -138,7 +160,9 @@ const previousStep = computed(() => {
 })
 
 const nextStep = computed(() => {
-  const index = visibleSteps.value.findIndex((step) => step.key === activeStep.value)
+  const index = visibleSteps.value.findIndex(
+    (step) => step.key === activeStep.value,
+  )
   if (index < 0 || index === visibleSteps.value.length - 1) {
     return null
   }
@@ -172,7 +196,10 @@ watch(
 
 function goToStep(stepKey: string | number) {
   const key = String(stepKey) as InfluxWorkbenchStepKey
-  if (visibleSteps.value.some((step) => step.key === key) && isStepEnabled(key)) {
+  if (
+    visibleSteps.value.some((step) => step.key === key) &&
+    isStepEnabled(key)
+  ) {
     activeStep.value = key
   }
 }
@@ -214,6 +241,11 @@ async function initializeWorkbench(controller: InfluxWorkbenchController) {
     const ran = await controller.runQuery()
     if (ran && visibleSteps.value.some((step) => step.key === 'results')) {
       activeStep.value = 'results'
+    } else if (
+      ran &&
+      visibleSteps.value.some((step) => step.key === 'dashboard')
+    ) {
+      activeStep.value = 'dashboard'
     } else if (visibleSteps.value.some((step) => step.key === 'query')) {
       activeStep.value = 'query'
     }
@@ -236,7 +268,12 @@ onMounted(async () => {
     </NCard>
 
     <NCard class="step-card" :bordered="false">
-      <NTabs :value="activeStep" type="segment" animated @update:value="goToStep">
+      <NTabs
+        :value="activeStep"
+        type="segment"
+        animated
+        @update:value="goToStep"
+      >
         <NTabPane
           v-for="step in visibleSteps"
           :key="step.key"
@@ -253,7 +290,10 @@ onMounted(async () => {
               {{ visibleSteps.find((step) => step.key === activeStep)?.label }}
             </h2>
             <NText depth="3">
-              {{ visibleSteps.find((step) => step.key === activeStep)?.description }}
+              {{
+                visibleSteps.find((step) => step.key === activeStep)
+                  ?.description
+              }}
             </NText>
           </div>
         </div>
@@ -261,7 +301,11 @@ onMounted(async () => {
         <component :is="stepComponent(activeStep)" :workbench="workbench" />
 
         <WorkbenchSummaryPanel
-          v-if="isSectionVisible('summary') && activeStep === 'query' && !isSectionVisible('results')"
+          v-if="
+            isSectionVisible('summary') &&
+            activeStep === 'query' &&
+            !isSectionVisible('results')
+          "
           :workbench="workbench"
           class="summary-inline"
         />
@@ -309,9 +353,21 @@ onMounted(async () => {
   overflow: hidden;
   border-radius: 28px;
   background:
-    radial-gradient(circle at top right, rgba(34, 197, 94, 0.18), transparent 24rem),
-    radial-gradient(circle at top left, rgba(14, 165, 233, 0.16), transparent 18rem),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(247, 251, 252, 0.98));
+    radial-gradient(
+      circle at top right,
+      rgba(34, 197, 94, 0.18),
+      transparent 24rem
+    ),
+    radial-gradient(
+      circle at top left,
+      rgba(14, 165, 233, 0.16),
+      transparent 18rem
+    ),
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.96),
+      rgba(247, 251, 252, 0.98)
+    );
 }
 
 .step-card {

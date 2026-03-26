@@ -5,6 +5,7 @@ export type InfluxWorkbenchSectionKey =
   | 'tags'
   | 'query'
   | 'summary'
+  | 'dashboard'
   | 'results'
 
 export type InfluxWorkbenchStepKey =
@@ -12,6 +13,7 @@ export type InfluxWorkbenchStepKey =
   | 'explorer'
   | 'tags'
   | 'query'
+  | 'dashboard'
   | 'results'
 
 export interface InfluxWorkbenchStepDefinition {

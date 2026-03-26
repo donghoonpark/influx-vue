@@ -6,6 +6,15 @@ import {
   RANGE_PRESETS,
   SCHEMA_LOOKBACK,
 } from '@/services/influx/flux'
+import {
+  buildDashboardPanelFlux,
+  createDashboardDefinition,
+  createDashboardPanel,
+  parseDashboardYaml,
+  type InfluxDashboardColumns,
+  type InfluxDashboardPanelDefinition,
+  type InfluxPanelVisualization,
+} from '@/services/influx/dashboard'
 import { summarizeRows } from '@/services/influx/resultTransforms'
 import { createBrowserInfluxDataSource } from '@/services/influx/browserDataSource'
 import type {
@@ -132,6 +141,13 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
   const rows = ref<InfluxRow[]>([])
   const hasExecutedQuery = ref(false)
+  const dashboardName = ref('Influx explorer dashboard')
+  const dashboardDescription = ref('')
+  const dashboardColumns = ref<InfluxDashboardColumns>(2)
+  const dashboardPanels = ref<InfluxDashboardPanelDefinition[]>([])
+  const dashboardPanelRows = ref<Record<string, InfluxRow[]>>({})
+  const dashboardPanelErrors = ref<Record<string, string>>({})
+  const dashboardPanelLoadingIds = ref<string[]>([])
   const isConnecting = ref(false)
   const isSchemaLoading = ref(false)
   const isQueryRunning = ref(false)
@@ -173,6 +189,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
     return generatedFlux.value
   })
+  const dashboardDefinition = computed(() =>
+    createDashboardDefinition({
+      name: dashboardName.value,
+      description: dashboardDescription.value,
+      columns: dashboardColumns.value,
+      panels: dashboardPanels.value,
+    }),
+  )
 
   const canRunQuery = computed(
     () =>
@@ -216,6 +240,49 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   function clearResults() {
     rows.value = []
     hasExecutedQuery.value = false
+  }
+
+  function clearDashboardPanelArtifacts(panelId?: string) {
+    if (!panelId) {
+      dashboardPanelRows.value = {}
+      dashboardPanelErrors.value = {}
+      dashboardPanelLoadingIds.value = []
+      return
+    }
+
+    const nextRows = { ...dashboardPanelRows.value }
+    delete nextRows[panelId]
+    dashboardPanelRows.value = nextRows
+
+    const nextErrors = { ...dashboardPanelErrors.value }
+    delete nextErrors[panelId]
+    dashboardPanelErrors.value = nextErrors
+
+    dashboardPanelLoadingIds.value = dashboardPanelLoadingIds.value.filter(
+      (activeId) => activeId !== panelId,
+    )
+  }
+
+  function buildCurrentQueryState() {
+    return {
+      bucket: selectedBucket.value,
+      measurement: selectedMeasurement.value,
+      fields: [...selectedFields.value],
+      rangePreset: rangePreset.value,
+      customStart: customStart.value,
+      customStop: customStop.value,
+      aggregateWindow: aggregateWindow.value,
+      aggregateFunction: aggregateFunction.value,
+      limit: limit.value,
+      tagFilters: tagFilters.value.map((filter) => ({
+        tagKey: filter.tagKey,
+        values: [...filter.values],
+      })),
+    }
+  }
+
+  function isDashboardPanelRunning(panelId: string) {
+    return dashboardPanelLoadingIds.value.includes(panelId)
   }
 
   async function loadTagValues(tagKey: string) {
@@ -473,10 +540,10 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     }
 
     isQueryRunning.value = true
-    hasExecutedQuery.value = true
 
     try {
       rows.value = await dataSource.value.queryRows(currentFlux.value)
+      hasExecutedQuery.value = true
       status.value = createStatusMessage(
         rows.value.length > 0 ? 'success' : 'warning',
         rows.value.length > 0 ? 'Query completed' : 'No data returned',
@@ -495,6 +562,256 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     } finally {
       isQueryRunning.value = false
     }
+  }
+
+  function addCurrentSelectionToDashboard(input: {
+    title?: string
+    description?: string
+    visualization?: InfluxPanelVisualization
+  }) {
+    if (
+      !selectedBucket.value ||
+      !selectedMeasurement.value ||
+      selectedFields.value.length === 0
+    ) {
+      status.value = createStatusMessage(
+        'warning',
+        'Panel is incomplete',
+        'Pick a bucket, measurement, and at least one field before saving a panel.',
+      )
+      return null
+    }
+
+    const panel = createDashboardPanel({
+      title: input.title,
+      description: input.description,
+      visualization: input.visualization,
+      queryMode: queryMode.value,
+      query: buildCurrentQueryState(),
+      rawFlux: rawFlux.value,
+    })
+
+    dashboardPanels.value = [...dashboardPanels.value, panel]
+
+    if (
+      hasExecutedQuery.value &&
+      currentFlux.value &&
+      currentFlux.value === buildDashboardPanelFlux(panel)
+    ) {
+      dashboardPanelRows.value = {
+        ...dashboardPanelRows.value,
+        [panel.id]: [...rows.value],
+      }
+    }
+
+    status.value = createStatusMessage(
+      'success',
+      'Panel saved',
+      `Saved "${panel.title}" to the dashboard library.`,
+    )
+
+    return panel
+  }
+
+  function removeDashboardPanel(panelId: string) {
+    dashboardPanels.value = dashboardPanels.value.filter(
+      (panel) => panel.id !== panelId,
+    )
+    clearDashboardPanelArtifacts(panelId)
+  }
+
+  function updateDashboardMeta(input: {
+    name?: string
+    description?: string
+    columns?: InfluxDashboardColumns
+  }) {
+    if (typeof input.name === 'string') {
+      dashboardName.value = input.name
+    }
+    if (typeof input.description === 'string') {
+      dashboardDescription.value = input.description
+    }
+    if (input.columns) {
+      dashboardColumns.value = input.columns
+    }
+  }
+
+  function replaceDashboardDefinition(
+    nextDefinition: ReturnType<typeof createDashboardDefinition>,
+  ) {
+    dashboardName.value = nextDefinition.name
+    dashboardDescription.value = nextDefinition.description
+    dashboardColumns.value = nextDefinition.columns
+    dashboardPanels.value = [...nextDefinition.panels]
+
+    const allowedIds = new Set(nextDefinition.panels.map((panel) => panel.id))
+
+    dashboardPanelRows.value = Object.fromEntries(
+      Object.entries(dashboardPanelRows.value).filter(([panelId]) =>
+        allowedIds.has(panelId),
+      ),
+    )
+    dashboardPanelErrors.value = Object.fromEntries(
+      Object.entries(dashboardPanelErrors.value).filter(([panelId]) =>
+        allowedIds.has(panelId),
+      ),
+    )
+    dashboardPanelLoadingIds.value = dashboardPanelLoadingIds.value.filter(
+      (panelId) => allowedIds.has(panelId),
+    )
+  }
+
+  function importDashboardYaml(source: string) {
+    try {
+      const parsed = parseDashboardYaml(source)
+      replaceDashboardDefinition(parsed)
+      status.value = createStatusMessage(
+        'success',
+        'Dashboard loaded',
+        `Loaded ${parsed.panels.length} panel(s) from YAML.`,
+      )
+      return true
+    } catch (error) {
+      status.value = createStatusMessage(
+        'error',
+        'Dashboard YAML is invalid',
+        error instanceof Error ? error.message : 'Unknown YAML parsing error.',
+      )
+      return false
+    }
+  }
+
+  async function runDashboardPanel(panelId: string) {
+    if (!dataSource.value) {
+      status.value = createStatusMessage(
+        'warning',
+        'Connect first',
+        'The dashboard can only run after the workbench connects to InfluxDB.',
+      )
+      return false
+    }
+
+    const panel = dashboardPanels.value.find((item) => item.id === panelId)
+    if (!panel) {
+      return false
+    }
+
+    dashboardPanelLoadingIds.value = [
+      ...new Set([...dashboardPanelLoadingIds.value, panelId]),
+    ]
+
+    try {
+      const nextRows = await dataSource.value.queryRows(
+        buildDashboardPanelFlux(panel),
+      )
+
+      dashboardPanelRows.value = {
+        ...dashboardPanelRows.value,
+        [panelId]: nextRows,
+      }
+
+      const nextErrors = { ...dashboardPanelErrors.value }
+      delete nextErrors[panelId]
+      dashboardPanelErrors.value = nextErrors
+
+      status.value = createStatusMessage(
+        nextRows.length > 0 ? 'success' : 'warning',
+        `Panel refreshed: ${panel.title}`,
+        nextRows.length > 0
+          ? `Fetched ${nextRows.length} row(s) for the panel.`
+          : 'The panel query ran successfully, but it returned no rows.',
+      )
+
+      return true
+    } catch (error) {
+      dashboardPanelErrors.value = {
+        ...dashboardPanelErrors.value,
+        [panelId]:
+          error instanceof Error ? error.message : 'Unknown panel query error.',
+      }
+      status.value = createStatusMessage(
+        'error',
+        `Panel failed: ${panel.title}`,
+        error instanceof Error ? error.message : 'Unknown panel query error.',
+      )
+      return false
+    } finally {
+      dashboardPanelLoadingIds.value = dashboardPanelLoadingIds.value.filter(
+        (activeId) => activeId !== panelId,
+      )
+    }
+  }
+
+  async function runDashboardPanels() {
+    if (dashboardPanels.value.length === 0) {
+      status.value = createStatusMessage(
+        'warning',
+        'No dashboard panels',
+        'Save or import at least one panel before running the dashboard.',
+      )
+      return false
+    }
+
+    let hasSuccess = false
+    for (const panel of dashboardPanels.value) {
+      const panelSucceeded = await runDashboardPanel(panel.id)
+      hasSuccess = panelSucceeded || hasSuccess
+    }
+
+    return hasSuccess
+  }
+
+  async function loadDashboardPanel(panelId: string) {
+    const panel = dashboardPanels.value.find((item) => item.id === panelId)
+    if (!panel) {
+      return false
+    }
+
+    if (dataSource.value && panel.query.bucket) {
+      await selectBucket(panel.query.bucket)
+    } else {
+      selectedBucket.value = panel.query.bucket
+      connection.bucket = panel.query.bucket
+    }
+
+    if (dataSource.value && panel.query.measurement) {
+      if (measurements.value.includes(panel.query.measurement)) {
+        await selectMeasurement(panel.query.measurement)
+      } else {
+        selectedMeasurement.value = panel.query.measurement
+      }
+    } else {
+      selectedMeasurement.value = panel.query.measurement
+    }
+
+    selectedFields.value = [...panel.query.fields]
+    rangePreset.value = panel.query.rangePreset
+    customStart.value = panel.query.customStart
+    customStop.value = panel.query.customStop
+    aggregateWindow.value = panel.query.aggregateWindow
+    aggregateFunction.value = panel.query.aggregateFunction
+    limit.value = panel.query.limit
+    tagFilters.value = panel.query.tagFilters.map((filter) => ({
+      tagKey: filter.tagKey,
+      values: [...filter.values],
+    }))
+    queryMode.value = panel.queryMode
+    rawFlux.value = panel.rawFlux
+    clearResults()
+
+    if (tagFilters.value.length > 0) {
+      await Promise.all(
+        tagFilters.value.map((filter) => loadTagValues(filter.tagKey)),
+      )
+    }
+
+    status.value = createStatusMessage(
+      'info',
+      'Panel loaded into the editor',
+      `Loaded "${panel.title}" back into the query builder.`,
+    )
+
+    return true
   }
 
   return {
@@ -522,6 +839,13 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     rawFlux,
     rows,
     hasExecutedQuery,
+    dashboardName,
+    dashboardDescription,
+    dashboardColumns,
+    dashboardPanels,
+    dashboardPanelRows,
+    dashboardPanelErrors,
+    dashboardDefinition,
     summary,
     generatedFlux,
     currentFlux,
@@ -541,6 +865,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     removeTagFilter,
     setQueryMode,
     runQuery,
+    isDashboardPanelRunning,
+    updateDashboardMeta,
+    addCurrentSelectionToDashboard,
+    removeDashboardPanel,
+    importDashboardYaml,
+    runDashboardPanel,
+    runDashboardPanels,
+    loadDashboardPanel,
   }
 }
 
