@@ -13,7 +13,6 @@ import {
   NTabPane,
   NTabs,
   NTag,
-  NText,
 } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
@@ -113,13 +112,7 @@ function dashboardRows(panelId: string) {
 <template>
   <div class="panel-shell">
     <div class="panel-header">
-      <div>
-        <h2 class="panel-title">ResultPanel</h2>
-        <NText depth="3">
-          쿼리 결과, 현재 상태 YAML, 그리고 YAML 기반 대시보드를 한 곳에서
-          확인합니다.
-        </NText>
-      </div>
+      <h2 class="panel-title">ResultPanel</h2>
 
       <NFlex :size="8">
         <NTag type="info">{{
@@ -175,10 +168,6 @@ function dashboardRows(panelId: string) {
       <NTabPane name="yaml" tab="YAML">
         <div class="yaml-shell">
           <div class="yaml-toolbar">
-            <NText depth="3">
-              현재 상태를 YAML로 확인하고, 편집한 YAML을 바로 dashboard로 적용할
-              수 있습니다.
-            </NText>
             <NFlex :size="8">
               <NTag v-if="isYamlDirty" type="warning">Unsaved edits</NTag>
               <NButton secondary size="small" @click="syncYamlFromState()">

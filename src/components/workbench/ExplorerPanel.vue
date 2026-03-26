@@ -2,10 +2,10 @@
 import { computed, ref, watch } from 'vue'
 
 import {
-  NAlert,
   NButton,
   NCheckbox,
   NCheckboxGroup,
+  NDatePicker,
   NEmpty,
   NFlex,
   NForm,
@@ -16,11 +16,11 @@ import {
   NInputNumber,
   NSelect,
   NSpin,
-  NTag,
-  NText,
+  NSwitch,
 } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
+import ExplorerStagePanel from '@/components/workbench/ExplorerStagePanel.vue'
 import type {
   AggregateFunction,
   InfluxBucket,
@@ -32,7 +32,7 @@ const props = defineProps<{
   workbench: InfluxWorkbenchController
 }>()
 
-const panelMode = ref<'explorer' | 'query'>('explorer')
+const isQueryView = ref(false)
 
 const bucketOptions = computed(() =>
   props.workbench.buckets.value.map((bucket) => ({
@@ -46,6 +46,24 @@ const queryText = computed(() =>
     ? props.workbench.rawFlux.value
     : props.workbench.generatedFlux.value,
 )
+
+const customRangeValue = computed<[number, number] | null>(() => {
+  if (
+    !props.workbench.customStart.value.trim() ||
+    !props.workbench.customStop.value.trim()
+  ) {
+    return null
+  }
+
+  const start = new Date(props.workbench.customStart.value).getTime()
+  const stop = new Date(props.workbench.customStop.value).getTime()
+
+  if (Number.isNaN(start) || Number.isNaN(stop)) {
+    return null
+  }
+
+  return [start, stop]
+})
 
 watch(
   () => props.workbench.generatedFlux.value,
@@ -123,13 +141,24 @@ function updateAggregateFunction(value: string | number | null) {
   ) as AggregateFunction
 }
 
-function showExplorer() {
-  panelMode.value = 'explorer'
+function updateCustomRange(value: [number, number] | null) {
+  if (!value) {
+    props.workbench.customStart.value = ''
+    props.workbench.customStop.value = ''
+    return
+  }
+
+  props.workbench.rangePreset.value = 'custom'
+  props.workbench.customStart.value = new Date(value[0]).toISOString()
+  props.workbench.customStop.value = new Date(value[1]).toISOString()
 }
 
-function showQuery() {
-  props.workbench.syncQueryFromExplorer()
-  panelMode.value = 'query'
+function updateQuerySwitch(value: boolean) {
+  isQueryView.value = value
+
+  if (value) {
+    props.workbench.syncQueryFromExplorer()
+  }
 }
 
 function updateQueryText(event: Event) {
@@ -139,30 +168,14 @@ function updateQueryText(event: Event) {
 
 <template>
   <div class="panel-shell">
-    <div class="panel-header">
-      <div>
-        <h2 class="panel-title">ExplorerPanel</h2>
-        <NText depth="3">
-          Bucket, measurement, field, tag filter를 선택하고 필요할 때 Flux 쿼리
-          뷰로 전환합니다.
-        </NText>
-      </div>
+    <div class="panel-toolbar">
+      <h2 class="panel-title">ExplorerPanel</h2>
 
       <NFlex :size="8" align="center">
-        <NButton
-          :type="panelMode === 'explorer' ? 'primary' : 'default'"
-          secondary
-          @click="showExplorer()"
-        >
-          List explorer
-        </NButton>
-        <NButton
-          :type="panelMode === 'query' ? 'primary' : 'default'"
-          secondary
-          @click="showQuery()"
-        >
-          Query
-        </NButton>
+        <NSwitch :value="isQueryView" @update:value="updateQuerySwitch">
+          <template #checked>Query</template>
+          <template #unchecked>Explorer</template>
+        </NSwitch>
         <NButton tertiary @click="workbench.refreshSchema()"
           >Refresh schema</NButton
         >
@@ -177,139 +190,184 @@ function updateQueryText(event: Event) {
       </NFlex>
     </div>
 
+    <div class="settings-shell">
+      <NForm label-placement="top">
+        <NGrid :cols="5" :x-gap="12">
+          <NGi :span="1">
+            <NFormItem label="Range preset">
+              <NSelect
+                :value="workbench.rangePreset.value"
+                :options="workbench.rangePresetOptions"
+                @update:value="updateRangePreset"
+              />
+            </NFormItem>
+          </NGi>
+
+          <NGi :span="2">
+            <NFormItem label="Datetime range">
+              <NDatePicker
+                clearable
+                type="datetimerange"
+                :value="customRangeValue"
+                @update:value="
+                  (value) => updateCustomRange(value as [number, number] | null)
+                "
+              />
+            </NFormItem>
+          </NGi>
+
+          <NGi :span="1">
+            <NFormItem label="Aggregate fn">
+              <NSelect
+                :value="workbench.aggregateFunction.value"
+                :options="workbench.aggregateFunctionOptions"
+                @update:value="updateAggregateFunction"
+              />
+            </NFormItem>
+          </NGi>
+
+          <NGi :span="1">
+            <NFormItem label="Row limit">
+              <NInputNumber
+                :value="workbench.limit.value"
+                :min="100"
+                :step="100"
+                placeholder="2000"
+                @update:value="
+                  (value) => (workbench.limit.value = value ?? 2000)
+                "
+              />
+            </NFormItem>
+          </NGi>
+
+          <NGi :span="5">
+            <NFormItem label="Aggregate window">
+              <NInput
+                v-model:value="workbench.aggregateWindow.value"
+                placeholder="15m or empty"
+              />
+            </NFormItem>
+          </NGi>
+        </NGrid>
+      </NForm>
+    </div>
+
     <NSpin
       :show="workbench.isSchemaLoading.value || workbench.isConnecting.value"
     >
-      <div v-if="panelMode === 'explorer'" class="content-stack">
-        <div class="explorer-grid">
-          <div class="bucket-column">
-            <div class="section-heading">
-              <strong>Bucket explorer</strong>
-              <NTag size="small" type="info">{{
-                workbench.buckets.value.length
-              }}</NTag>
-            </div>
-
-            <div v-if="workbench.buckets.value.length > 0" class="bucket-list">
+      <div v-if="!isQueryView" class="flow-grid">
+        <ExplorerStagePanel
+          title="Bucket"
+          :count="workbench.buckets.value.length"
+          count-type="info"
+        >
+          <template #default>
+            <div
+              v-if="workbench.buckets.value.length > 0"
+              class="selection-list"
+            >
               <button
                 v-for="bucket in workbench.buckets.value"
                 :key="bucket.id"
-                class="bucket-button"
+                class="selection-item"
                 :class="{
                   active: bucket.name === workbench.selectedBucket.value,
                 }"
                 @click="workbench.selectBucket(bucket.name)"
               >
-                <span class="bucket-name">{{ bucket.name }}</span>
-                <span class="bucket-meta">{{ formatBucketMeta(bucket) }}</span>
+                <span class="item-title">{{ bucket.name }}</span>
+                <span class="item-meta">{{ formatBucketMeta(bucket) }}</span>
+              </button>
+            </div>
+            <NEmpty v-else description="Connect to InfluxDB to load buckets." />
+          </template>
+        </ExplorerStagePanel>
+
+        <ExplorerStagePanel
+          title="Measurement"
+          :count="workbench.measurements.value.length"
+          count-type="info"
+        >
+          <template #actions>
+            <NSelect
+              :value="workbench.selectedBucket.value"
+              :options="bucketOptions"
+              size="small"
+              placeholder="Bucket"
+              class="stage-select"
+              @update:value="
+                (value) => workbench.selectBucket(String(value ?? ''))
+              "
+            />
+          </template>
+
+          <template #default>
+            <div
+              v-if="workbench.measurements.value.length > 0"
+              class="selection-list"
+            >
+              <button
+                v-for="measurement in workbench.measurements.value"
+                :key="measurement"
+                class="selection-item"
+                :class="{
+                  active: measurement === workbench.selectedMeasurement.value,
+                }"
+                @click="updateSelectedMeasurement(measurement)"
+              >
+                <span class="item-title">{{ measurement }}</span>
               </button>
             </div>
             <NEmpty
               v-else
-              description="Connect to InfluxDB to load bucket metadata."
+              description="Select a bucket to load measurements."
             />
-          </div>
+          </template>
+        </ExplorerStagePanel>
 
-          <div class="selection-column">
-            <NForm label-placement="top">
-              <NFormItem label="Active bucket">
-                <NSelect
-                  :value="workbench.selectedBucket.value"
-                  :options="bucketOptions"
-                  placeholder="Select a bucket"
-                  @update:value="
-                    (value) => workbench.selectBucket(String(value ?? ''))
-                  "
-                />
-              </NFormItem>
-            </NForm>
-
-            <div class="explorer-shelves">
-              <div class="surface-card">
-                <div class="surface-heading">
-                  <span>Measurements</span>
-                  <NTag size="small" type="info">
-                    {{ workbench.measurements.value.length }}
-                  </NTag>
-                </div>
-
-                <div
-                  v-if="workbench.measurements.value.length > 0"
-                  class="selection-list"
+        <ExplorerStagePanel
+          title="Field"
+          :count="workbench.fieldKeys.value.length"
+          count-type="success"
+        >
+          <template #default>
+            <NCheckboxGroup
+              v-if="workbench.fieldKeys.value.length > 0"
+              :value="workbench.selectedFields.value"
+              @update:value="updateSelectedFields"
+            >
+              <div class="selection-list">
+                <label
+                  v-for="field in workbench.fieldKeys.value"
+                  :key="field"
+                  class="checkbox-item"
                 >
-                  <button
-                    v-for="measurement in workbench.measurements.value"
-                    :key="measurement"
-                    class="selection-item"
-                    :class="{
-                      active:
-                        measurement === workbench.selectedMeasurement.value,
-                    }"
-                    @click="updateSelectedMeasurement(measurement)"
-                  >
-                    {{ measurement }}
-                  </button>
-                </div>
-                <NEmpty
-                  v-else
-                  size="small"
-                  description="Select a bucket to load measurements."
-                />
+                  <NCheckbox :value="field" />
+                  <span>{{ field }}</span>
+                </label>
               </div>
+            </NCheckboxGroup>
+            <NEmpty v-else description="Select a measurement to load fields." />
+          </template>
+        </ExplorerStagePanel>
 
-              <div class="surface-card">
-                <div class="surface-heading">
-                  <span>Fields</span>
-                  <NTag size="small" type="success">
-                    {{ workbench.fieldKeys.value.length }}
-                  </NTag>
-                </div>
+        <ExplorerStagePanel
+          title="Tags"
+          :count="workbench.tagKeys.value.length"
+          count-type="warning"
+        >
+          <template #actions>
+            <NButton
+              tertiary
+              size="small"
+              :disabled="workbench.tagKeys.value.length === 0"
+              @click="workbench.addTagFilter()"
+            >
+              Add
+            </NButton>
+          </template>
 
-                <NCheckboxGroup
-                  v-if="workbench.fieldKeys.value.length > 0"
-                  :value="workbench.selectedFields.value"
-                  @update:value="updateSelectedFields"
-                >
-                  <div class="selection-list">
-                    <label
-                      v-for="field in workbench.fieldKeys.value"
-                      :key="field"
-                      class="checkbox-item"
-                    >
-                      <NCheckbox :value="field" />
-                      <span>{{ field }}</span>
-                    </label>
-                  </div>
-                </NCheckboxGroup>
-                <NEmpty
-                  v-else
-                  size="small"
-                  description="Select a measurement to load fields."
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="support-grid">
-          <div class="surface-card">
-            <div class="surface-heading">
-              <span>Tag filters</span>
-              <NFlex :size="8" align="center">
-                <NTag size="small" type="warning">
-                  {{ workbench.tagKeys.value.length }} discovered
-                </NTag>
-                <NButton
-                  tertiary
-                  size="small"
-                  :disabled="workbench.tagKeys.value.length === 0"
-                  @click="workbench.addTagFilter()"
-                >
-                  Add
-                </NButton>
-              </NFlex>
-            </div>
-
+          <template #default>
             <div
               v-if="workbench.tagFilters.value.length > 0"
               class="filter-stack"
@@ -347,114 +405,14 @@ function updateQueryText(event: Event) {
                 </NButton>
               </div>
             </div>
-            <NEmpty
-              v-else
-              description="Tag filters are optional. Add host, region, or service filters when needed."
-            />
-          </div>
-
-          <div class="surface-card">
-            <div class="surface-heading">
-              <span>Query settings</span>
-              <NTag size="small" type="default">
-                {{ workbench.selectedFields.value.length }} selected field(s)
-              </NTag>
-            </div>
-
-            <NForm label-placement="top">
-              <NGrid :cols="2" :x-gap="12">
-                <NGi>
-                  <NFormItem label="Time range">
-                    <NSelect
-                      :value="workbench.rangePreset.value"
-                      :options="workbench.rangePresetOptions"
-                      @update:value="updateRangePreset"
-                    />
-                  </NFormItem>
-                </NGi>
-
-                <NGi>
-                  <NFormItem label="Aggregate fn">
-                    <NSelect
-                      :value="workbench.aggregateFunction.value"
-                      :options="workbench.aggregateFunctionOptions"
-                      @update:value="updateAggregateFunction"
-                    />
-                  </NFormItem>
-                </NGi>
-
-                <NGi>
-                  <NFormItem label="Aggregate window">
-                    <NInput
-                      v-model:value="workbench.aggregateWindow.value"
-                      placeholder="15m or empty"
-                    />
-                  </NFormItem>
-                </NGi>
-
-                <NGi>
-                  <NFormItem label="Row limit">
-                    <NInputNumber
-                      :value="workbench.limit.value"
-                      :min="100"
-                      :step="100"
-                      placeholder="2000"
-                      @update:value="
-                        (value) => (workbench.limit.value = value ?? 2000)
-                      "
-                    />
-                  </NFormItem>
-                </NGi>
-
-                <NGi v-if="workbench.rangePreset.value === 'custom'">
-                  <NFormItem label="Custom start">
-                    <input
-                      v-model="workbench.customStart.value"
-                      class="native-datetime"
-                      type="datetime-local"
-                    />
-                  </NFormItem>
-                </NGi>
-
-                <NGi v-if="workbench.rangePreset.value === 'custom'">
-                  <NFormItem label="Custom stop">
-                    <input
-                      v-model="workbench.customStop.value"
-                      class="native-datetime"
-                      type="datetime-local"
-                    />
-                  </NFormItem>
-                </NGi>
-              </NGrid>
-            </NForm>
-          </div>
-        </div>
+            <NEmpty v-else description="Add a tag filter when you need one." />
+          </template>
+        </ExplorerStagePanel>
       </div>
 
-      <div v-else class="query-view">
-        <NAlert type="info" :bordered="false" title="Explorer drives the query">
-          리스트 기반 explorer가 Flux의 원본입니다. 여기서 쿼리를 수정해도
-          explorer 선택 상태는 바뀌지 않습니다.
-        </NAlert>
-
-        <div class="query-summary">
-          <NTag type="info">{{
-            workbench.selectedBucket.value || 'bucket'
-          }}</NTag>
-          <NTag type="success">
-            {{ workbench.selectedMeasurement.value || 'measurement' }}
-          </NTag>
-          <NTag type="default">
-            {{
-              workbench.selectedFields.value.join(', ') ||
-              'field selection needed'
-            }}
-          </NTag>
-        </div>
-
+      <div v-else class="query-shell">
         <div class="code-shell">
           <div class="code-toolbar">
-            <NText depth="3">Flux editor</NText>
             <NButton
               secondary
               size="small"
@@ -466,7 +424,7 @@ function updateQueryText(event: Event) {
           <textarea
             class="code-editor"
             :value="queryText"
-            placeholder="Switch back to list explorer to define a query."
+            placeholder="Switch back to explorer to define a query."
             @input="updateQueryText"
           />
         </div>
@@ -483,55 +441,31 @@ function updateQueryText(event: Event) {
   min-width: 0;
 }
 
-.panel-header {
+.panel-toolbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
 
 .panel-title {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 1.4rem;
 }
 
-.content-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.explorer-grid {
-  display: grid;
-  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.25fr);
-  gap: 16px;
-  align-items: start;
-}
-
-.support-grid {
-  display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
-  gap: 16px;
-}
-
-.surface-card {
-  min-width: 0;
+.settings-shell {
   padding: 14px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.84);
 }
 
-.section-heading,
-.surface-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+.flow-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
 }
 
-.bucket-list,
 .selection-list {
   display: flex;
   flex-direction: column;
@@ -540,7 +474,6 @@ function updateQueryText(event: Event) {
   overflow: auto;
 }
 
-.bucket-button,
 .selection-item {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.28);
@@ -555,50 +488,34 @@ function updateQueryText(event: Event) {
     box-shadow 120ms ease;
 }
 
-.bucket-button:hover,
 .selection-item:hover {
   transform: translateY(-1px);
   border-color: rgba(14, 165, 233, 0.4);
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
 }
 
-.bucket-button.active,
 .selection-item.active {
   border-color: rgba(20, 184, 166, 0.55);
   background: rgba(236, 253, 245, 0.92);
 }
 
-.bucket-name,
-.bucket-meta {
+.item-title,
+.item-meta {
   display: block;
 }
 
-.bucket-name {
+.item-title {
   font-weight: 700;
 }
 
-.bucket-meta {
+.item-meta {
   margin-top: 4px;
   font-size: 0.9rem;
   color: rgba(71, 85, 105, 0.84);
 }
 
-.explorer-shelves {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.filter-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.filter-row {
-  display: grid;
-  grid-template-columns: 1fr 1.5fr auto;
-  gap: 10px;
+.stage-select {
+  width: 150px;
 }
 
 .checkbox-item {
@@ -611,26 +528,20 @@ function updateQueryText(event: Event) {
   background: rgba(248, 250, 252, 0.7);
 }
 
-.native-datetime {
-  width: 100%;
-  min-height: 40px;
-  border: 1px solid rgba(203, 213, 225, 1);
-  border-radius: 12px;
-  padding: 0 12px;
-  background: white;
-  color: inherit;
-}
-
-.query-view {
+.filter-stack {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 12px;
 }
 
-.query-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.filter-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.query-shell {
+  min-width: 0;
 }
 
 .code-shell {
@@ -642,12 +553,9 @@ function updateQueryText(event: Event) {
 
 .code-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   padding: 12px 14px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(15, 23, 42, 0.96);
 }
 
 .code-editor {
@@ -669,20 +577,29 @@ function updateQueryText(event: Event) {
   outline: none;
 }
 
-@media (max-width: 1200px) {
-  .explorer-grid,
-  .support-grid,
-  .explorer-shelves {
-    grid-template-columns: 1fr;
-  }
-
-  .panel-header {
-    flex-direction: column;
+@media (max-width: 1400px) {
+  .flow-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 900px) {
-  .filter-row {
+@media (max-width: 960px) {
+  .panel-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .flow-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stage-select {
+    width: 100px;
+  }
+}
+
+@media (max-width: 720px) {
+  .flow-grid {
     grid-template-columns: 1fr;
   }
 }

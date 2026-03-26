@@ -24,13 +24,7 @@ function updateBucket(value: string) {
 
 <template>
   <div class="panel-shell">
-    <div class="panel-copy">
-      <h2 class="panel-title">Connect to InfluxDB</h2>
-      <p class="panel-description">
-        Explorer와 Result 패널은 한 화면에서 함께 동작합니다. 먼저 연결을
-        완료하면 overlay가 사라지고 바로 탐색을 이어갈 수 있습니다.
-      </p>
-    </div>
+    <h2 class="panel-title">Connect to InfluxDB</h2>
 
     <NAlert
       :title="workbench.status.value.title"
@@ -120,20 +114,9 @@ function updateBucket(value: string) {
   gap: 18px;
 }
 
-.panel-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .panel-title {
   margin: 0;
   font-size: 1.45rem;
-}
-
-.panel-description {
-  margin: 0;
-  color: rgba(71, 85, 105, 0.9);
 }
 
 .status-alert,

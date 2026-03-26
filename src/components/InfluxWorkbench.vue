@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 
-import { NCard, NTag, NText } from 'naive-ui'
+import { NCard, NTag } from 'naive-ui'
 
 import { useInfluxWorkbench } from '@/composables/useInfluxWorkbench'
 import ConnectionPanel from '@/components/workbench/ConnectionPanel.vue'
@@ -51,10 +51,6 @@ const showConnectionOverlay = computed(
   () => showConnectionPanel.value && !workbench.hasConnection.value,
 )
 
-const workspaceClass = computed(() => ({
-  'single-panel': showExplorerPanel.value !== showResultPanel.value,
-}))
-
 async function initializeWorkbench() {
   if (props.initialConnection) {
     Object.assign(workbench.connection, props.initialConnection)
@@ -99,29 +95,24 @@ onMounted(async () => {
           <h1 class="hero-title">{{ title }}</h1>
           <p class="hero-subtitle">{{ subtitle }}</p>
         </div>
-
-        <NText depth="3" class="hero-note">
-          ExplorerPanel과 ResultPanel은 동시에 보이고, 연결이 없을 때만
-          ConnectionPanel이 overlay로 올라옵니다.
-        </NText>
       </div>
     </NCard>
 
-    <div class="workspace" :class="workspaceClass">
-      <NCard
-        v-if="showExplorerPanel"
-        class="surface-card explorer-surface"
-        :bordered="false"
-      >
-        <ExplorerPanel :workbench="workbench" />
-      </NCard>
-
+    <div class="workspace">
       <NCard
         v-if="showResultPanel"
         class="surface-card result-surface"
         :bordered="false"
       >
         <ResultPanel :workbench="workbench" />
+      </NCard>
+
+      <NCard
+        v-if="showExplorerPanel"
+        class="surface-card explorer-surface"
+        :bordered="false"
+      >
+        <ExplorerPanel :workbench="workbench" />
       </NCard>
 
       <div v-if="showConnectionOverlay" class="connection-overlay">
@@ -162,13 +153,6 @@ onMounted(async () => {
     );
 }
 
-.hero-copy {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-}
-
 .hero-topline {
   display: flex;
   gap: 8px;
@@ -188,24 +172,23 @@ onMounted(async () => {
   color: rgba(15, 23, 42, 0.82);
 }
 
-.hero-note {
-  max-width: 34ch;
-}
-
 .workspace {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+  display: flex;
+  flex-direction: column;
   gap: 16px;
-}
-
-.workspace.single-panel {
-  grid-template-columns: 1fr;
 }
 
 .surface-card {
   min-width: 0;
   border-radius: 28px;
+}
+
+.result-surface {
+  min-height: 520px;
+}
+
+.explorer-surface {
   min-height: 760px;
 }
 
@@ -236,13 +219,8 @@ onMounted(async () => {
 }
 
 @media (max-width: 1200px) {
-  .hero-copy {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .workspace {
-    grid-template-columns: 1fr;
+  .workbench-shell {
+    gap: 14px;
   }
 }
 </style>
