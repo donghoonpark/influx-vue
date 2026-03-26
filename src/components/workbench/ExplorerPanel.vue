@@ -443,7 +443,7 @@ function updateQueryText(event: Event) {
 .panel-shell {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -451,20 +451,20 @@ function updateQueryText(event: Event) {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 16px;
+  gap: 12px;
 }
 
 .settings-shell {
-  padding: 14px;
+  padding: 10px 12px;
   border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 18px;
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.84);
 }
 
 .settings-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: nowrap;
 }
 
@@ -485,23 +485,23 @@ function updateQueryText(event: Event) {
 .flow-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
 }
 
 .selection-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 360px;
+  gap: 8px;
+  max-height: 320px;
   overflow: auto;
 }
 
 .selection-item {
   width: 100%;
   border: 1px solid rgba(148, 163, 184, 0.28);
-  border-radius: 16px;
+  border-radius: 14px;
   background: white;
-  padding: 14px 16px;
+  padding: 10px 12px;
   text-align: left;
   cursor: pointer;
   transition:
@@ -540,16 +540,16 @@ function updateQueryText(event: Event) {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 10px;
   border: 1px solid rgba(226, 232, 240, 0.8);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(248, 250, 252, 0.7);
 }
 
 .filter-stack {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .filter-row {
@@ -563,7 +563,7 @@ function updateQueryText(event: Event) {
 }
 
 .code-shell {
-  border-radius: 20px;
+  border-radius: 16px;
   overflow: hidden;
   border: 1px solid rgba(15, 23, 42, 0.18);
   background: #0f172a;
@@ -572,15 +572,15 @@ function updateQueryText(event: Event) {
 .code-toolbar {
   display: flex;
   justify-content: flex-end;
-  padding: 12px 14px;
+  padding: 8px 10px;
   border-bottom: 1px solid rgba(148, 163, 184, 0.18);
 }
 
 .code-editor {
   width: 100%;
-  min-height: 420px;
+  min-height: 340px;
   border: 0;
-  padding: 18px;
+  padding: 12px 14px;
   resize: vertical;
   background: transparent;
   color: #e2e8f0;

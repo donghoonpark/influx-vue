@@ -34,11 +34,11 @@ defineProps<{
 .stage-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 420px;
-  padding: 14px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 18px;
+  gap: 10px;
+  min-height: 360px;
+  padding: 10px 12px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 16px;
   background: rgba(255, 255, 255, 0.84);
 }
 

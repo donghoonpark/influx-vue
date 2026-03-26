@@ -241,7 +241,7 @@ onMounted(async () => {
 .workbench-shell {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .hero-card {
@@ -265,11 +265,15 @@ onMounted(async () => {
     );
 }
 
+.hero-card :deep(.n-card__content) {
+  padding: 10px 14px;
+}
+
 .hero-topline {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 24px;
+  min-height: 20px;
 }
 
 .popover-content {
@@ -298,7 +302,7 @@ onMounted(async () => {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .surface-card {
@@ -306,12 +310,16 @@ onMounted(async () => {
   border-radius: 28px;
 }
 
+.surface-card :deep(.n-card__content) {
+  padding: 12px 14px;
+}
+
 .result-surface {
-  min-height: 520px;
+  min-height: 460px;
 }
 
 .explorer-surface {
-  min-height: 760px;
+  min-height: 680px;
 }
 
 .connection-overlay {
@@ -364,7 +372,7 @@ onMounted(async () => {
 
 @media (max-width: 1200px) {
   .workbench-shell {
-    gap: 14px;
+    gap: 8px;
   }
 }
 </style>

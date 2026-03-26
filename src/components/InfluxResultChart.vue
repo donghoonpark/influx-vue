@@ -102,11 +102,11 @@ const option = computed<EChartsOption>(() => ({
 
 <style scoped>
 .chart-shell {
-  min-height: 380px;
+  min-height: 340px;
 }
 
 .chart {
-  height: 380px;
+  height: 340px;
   width: 100%;
 }
 </style>

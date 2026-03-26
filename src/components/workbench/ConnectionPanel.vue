@@ -116,7 +116,7 @@ function updateBucket(value: string) {
 .panel-shell {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
 }
 
 .status-alert,

@@ -247,14 +247,14 @@ function dashboardRows(panelId: string) {
 .panel-shell {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   min-width: 0;
 }
 
 .yaml-shell {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 
 .yaml-toolbar,
@@ -262,15 +262,19 @@ function dashboardRows(panelId: string) {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
+}
+
+.panel-shell :deep(.n-tabs-nav) {
+  margin-bottom: 6px;
 }
 
 .code-editor {
   width: 100%;
-  min-height: 420px;
+  min-height: 340px;
   border: 1px solid rgba(15, 23, 42, 0.18);
-  border-radius: 20px;
-  padding: 18px;
+  border-radius: 16px;
+  padding: 12px 14px;
   resize: vertical;
   background: #0f172a;
   color: #e2e8f0;
@@ -286,16 +290,16 @@ function dashboardRows(panelId: string) {
 }
 
 .dashboard-empty {
-  padding: 18px 0;
+  padding: 10px 0;
 }
 
 .dashboard-grid {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .dashboard-card {
-  border-radius: 22px;
+  border-radius: 18px;
   min-width: 0;
 }
 
@@ -311,13 +315,13 @@ function dashboardRows(panelId: string) {
 
 .dashboard-tags,
 .dashboard-error {
-  margin: 14px 0;
+  margin: 10px 0;
 }
 
 .dashboard-visuals {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 @media (max-width: 1200px) {
