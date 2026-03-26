@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DownloadOutline, LogInOutline } from '@vicons/ionicons5'
 import {
   NAlert,
   NButton,
@@ -12,6 +13,7 @@ import {
 } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
+import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
 const props = defineProps<{
   workbench: InfluxWorkbenchController
@@ -24,8 +26,6 @@ function updateBucket(value: string) {
 
 <template>
   <div class="panel-shell">
-    <h2 class="panel-title">Connect to InfluxDB</h2>
-
     <NAlert
       :title="workbench.status.value.title"
       :type="workbench.status.value.type"
@@ -78,12 +78,17 @@ function updateBucket(value: string) {
       </NGrid>
 
       <NFlex :size="12">
-        <NButton secondary @click="workbench.loadLocalDemoPreset()">
+        <NButton
+          secondary
+          :render-icon="renderNaiveIcon(DownloadOutline)"
+          @click="workbench.loadLocalDemoPreset()"
+        >
           Load local demo preset
         </NButton>
         <NButton
           type="primary"
           :loading="workbench.isConnecting.value"
+          :render-icon="renderNaiveIcon(LogInOutline)"
           @click="workbench.connect()"
         >
           Connect
@@ -112,11 +117,6 @@ function updateBucket(value: string) {
   display: flex;
   flex-direction: column;
   gap: 18px;
-}
-
-.panel-title {
-  margin: 0;
-  font-size: 1.45rem;
 }
 
 .status-alert,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
+import { LogOutOutline, PlayOutline, RefreshOutline } from '@vicons/ionicons5'
 import {
   NButton,
   NCheckbox,
@@ -24,6 +25,7 @@ import type {
   RangePresetKey,
   TagFilter,
 } from '@/services/influx/types'
+import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
 const props = defineProps<{
   workbench: InfluxWorkbenchController
@@ -177,8 +179,6 @@ function updateQueryText(event: Event) {
 <template>
   <div class="panel-shell">
     <div class="panel-toolbar">
-      <h2 class="panel-title">ExplorerPanel</h2>
-
       <NFlex :size="8" align="center">
         <NSwitch :value="isQueryView" @update:value="updateQuerySwitch">
           <template #checked>Query</template>
@@ -187,14 +187,25 @@ function updateQueryText(event: Event) {
         <NButton
           tertiary
           :disabled="!workbench.hasConnection.value"
+          :render-icon="renderNaiveIcon(RefreshOutline)"
           @click="workbench.refreshSchema()"
         >
           Refresh schema
         </NButton>
         <NButton
+          v-if="workbench.hasConnection.value"
+          tertiary
+          type="warning"
+          :render-icon="renderNaiveIcon(LogOutOutline)"
+          @click="workbench.disconnect()"
+        >
+          Disconnect
+        </NButton>
+        <NButton
           type="primary"
           :disabled="!workbench.canRunQuery.value"
           :loading="workbench.isQueryRunning.value"
+          :render-icon="renderNaiveIcon(PlayOutline)"
           @click="workbench.runQuery()"
         >
           Run query
@@ -439,13 +450,8 @@ function updateQueryText(event: Event) {
 .panel-toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
-}
-
-.panel-title {
-  margin: 0;
-  font-size: 1.4rem;
 }
 
 .settings-shell {

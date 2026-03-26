@@ -2,6 +2,15 @@
 import { computed, ref, watch } from 'vue'
 
 import {
+  DocumentTextOutline,
+  InformationCircleOutline,
+  RefreshOutline,
+  SaveOutline,
+  StatsChartOutline,
+  GridOutline,
+  OpenOutline,
+} from '@vicons/ionicons5'
+import {
   NButton,
   NCard,
   NEmpty,
@@ -19,6 +28,7 @@ import {
   createDashboardDefinition,
   serializeDashboardToYaml,
 } from '@/services/influx/dashboard'
+import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
 const props = defineProps<{
   workbench: InfluxWorkbenchController
@@ -109,8 +119,6 @@ function dashboardRows(panelId: string) {
 <template>
   <div class="panel-shell">
     <div class="panel-header">
-      <h2 class="panel-title">ResultPanel</h2>
-
       <NFlex :size="8" align="center">
         <NTag type="info">{{
           workbench.selectedBucket.value || 'bucket pending'
@@ -120,7 +128,13 @@ function dashboardRows(panelId: string) {
         </NTag>
         <NPopover trigger="hover">
           <template #trigger>
-            <NButton quaternary size="small">Status</NButton>
+            <NButton
+              quaternary
+              size="small"
+              :render-icon="renderNaiveIcon(InformationCircleOutline)"
+            >
+              Status
+            </NButton>
           </template>
           <div class="popover-content">
             <strong>{{ workbench.status.value.title }}</strong>
@@ -129,7 +143,13 @@ function dashboardRows(panelId: string) {
         </NPopover>
         <NPopover trigger="hover">
           <template #trigger>
-            <NButton quaternary size="small">Stats</NButton>
+            <NButton
+              quaternary
+              size="small"
+              :render-icon="renderNaiveIcon(StatsChartOutline)"
+            >
+              Stats
+            </NButton>
           </template>
           <div class="popover-content stats-popover">
             <div class="stat-row">
@@ -167,15 +187,26 @@ function dashboardRows(panelId: string) {
           <div class="yaml-toolbar">
             <NFlex :size="8">
               <NTag v-if="isYamlDirty" type="warning">Unsaved edits</NTag>
-              <NButton secondary size="small" @click="syncYamlFromState()">
+              <NButton
+                secondary
+                size="small"
+                :render-icon="renderNaiveIcon(DocumentTextOutline)"
+                @click="syncYamlFromState()"
+              >
                 Load current state
               </NButton>
-              <NButton secondary size="small" @click="saveCurrentSelection()">
+              <NButton
+                secondary
+                size="small"
+                :render-icon="renderNaiveIcon(SaveOutline)"
+                @click="saveCurrentSelection()"
+              >
                 Save current panel
               </NButton>
               <NButton
                 type="primary"
                 size="small"
+                :render-icon="renderNaiveIcon(GridOutline)"
                 @click="applyYamlAsDashboard()"
               >
                 Apply as dashboard
@@ -220,6 +251,7 @@ function dashboardRows(panelId: string) {
                 <NButton
                   tertiary
                   size="small"
+                  :render-icon="renderNaiveIcon(OpenOutline)"
                   @click="workbench.loadDashboardPanel(panel.id)"
                 >
                   Load
@@ -228,6 +260,7 @@ function dashboardRows(panelId: string) {
                   tertiary
                   size="small"
                   :loading="workbench.isDashboardPanelRunning(panel.id)"
+                  :render-icon="renderNaiveIcon(RefreshOutline)"
                   @click="workbench.runDashboardPanel(panel.id)"
                 >
                   Refresh
@@ -287,13 +320,8 @@ function dashboardRows(panelId: string) {
 .panel-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 16px;
-}
-
-.panel-title {
-  margin: 0 0 8px;
-  font-size: 1.4rem;
 }
 
 .yaml-shell {

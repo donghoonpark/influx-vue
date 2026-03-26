@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 
+import { AnalyticsOutline } from '@vicons/ionicons5'
 import { NAlert, NButton, NCard, NTag } from 'naive-ui'
 
 import { useInfluxWorkbench } from '@/composables/useInfluxWorkbench'
@@ -10,6 +11,7 @@ import ResultPanel from '@/components/workbench/ResultPanel.vue'
 import type { InfluxConnectionConfig } from '@/services/influx/types'
 import type { InfluxWorkbenchSectionKey } from '@/components/workbench/types'
 import type { StatusMessage } from '@/services/influx/types'
+import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
 const props = withDefaults(
   defineProps<{
@@ -43,7 +45,6 @@ const showExplorerPanel = computed(
 const showResultPanel = computed(
   () => !props.hiddenSections.includes('results'),
 )
-const isConnectionOverlayOpen = ref(showConnectionPanel.value)
 const floatingStatus = ref<StatusMessage | null>(null)
 const shouldAutoConnect = computed(
   () =>
@@ -51,19 +52,7 @@ const shouldAutoConnect = computed(
     (!showConnectionPanel.value && Boolean(props.initialConnection)),
 )
 const showConnectionOverlay = computed(
-  () =>
-    showConnectionPanel.value &&
-    !workbench.hasConnection.value &&
-    isConnectionOverlayOpen.value,
-)
-
-watch(
-  () => workbench.hasConnection.value,
-  (connected) => {
-    if (connected) {
-      isConnectionOverlayOpen.value = false
-    }
-  },
+  () => showConnectionPanel.value && !workbench.hasConnection.value,
 )
 
 watch(
@@ -83,22 +72,6 @@ watch(
     onCleanup(() => window.clearTimeout(timeoutId))
   },
 )
-
-function openConnectionOverlay() {
-  if (showConnectionPanel.value) {
-    isConnectionOverlayOpen.value = true
-  }
-}
-
-function handleConnectionButton() {
-  if (workbench.hasConnection.value) {
-    workbench.disconnect()
-    isConnectionOverlayOpen.value = false
-    return
-  }
-
-  openConnectionOverlay()
-}
 
 async function initializeWorkbench() {
   if (props.initialConnection) {
@@ -126,27 +99,24 @@ onMounted(async () => {
 <template>
   <div class="workbench-shell">
     <NCard v-if="showHero" class="hero-card" :bordered="false">
-      <div class="hero-copy">
-        <div class="hero-copy-main">
-          <div class="hero-topline">
-            <NTag round size="small" type="success">Single-page explorer</NTag>
-            <NTag
-              size="small"
-              :type="workbench.hasConnection.value ? 'success' : 'warning'"
-            >
-              {{
-                workbench.hasConnection.value
-                  ? 'Connected'
-                  : 'Connection required'
-              }}
-            </NTag>
-            <NButton size="small" secondary @click="handleConnectionButton()">
-              {{ workbench.hasConnection.value ? 'Disconnect' : 'Connect' }}
-            </NButton>
-          </div>
-          <h1 class="hero-title">{{ title }}</h1>
-          <p class="hero-subtitle">{{ subtitle }}</p>
-        </div>
+      <div class="hero-topline">
+        <NButton
+          round
+          size="small"
+          secondary
+          strong
+          :render-icon="renderNaiveIcon(AnalyticsOutline)"
+        >
+          InfluxDB Explorer
+        </NButton>
+        <NTag
+          size="small"
+          :type="workbench.hasConnection.value ? 'success' : 'warning'"
+        >
+          {{
+            workbench.hasConnection.value ? 'Connected' : 'Connection required'
+          }}
+        </NTag>
       </div>
     </NCard>
 
@@ -217,31 +187,12 @@ onMounted(async () => {
     );
 }
 
-.hero-copy-main {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
 .hero-topline {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-bottom: 14px;
-}
-
-.hero-title {
-  margin: 0 0 10px;
-  font-size: clamp(2rem, 3vw, 3rem);
-  line-height: 1;
-  letter-spacing: -0.05em;
-}
-
-.hero-subtitle {
-  margin: 0;
-  max-width: 64ch;
-  color: rgba(15, 23, 42, 0.82);
+  min-height: 24px;
 }
 
 .workspace {
