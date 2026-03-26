@@ -54,6 +54,22 @@ function createMockDataSource() {
   return dataSource
 }
 
+function createPingFailureDataSource() {
+  const dataSource: InfluxExplorerDataSource = {
+    ping: vi
+      .fn<() => Promise<InfluxPingResult>>()
+      .mockRejectedValue(new Error('Token rejected')),
+    listBuckets: vi.fn<() => Promise<InfluxBucket[]>>(),
+    listMeasurements: vi.fn<() => Promise<string[]>>(),
+    listFieldKeys: vi.fn<() => Promise<string[]>>(),
+    listTagKeys: vi.fn<() => Promise<string[]>>(),
+    listTagValues: vi.fn<() => Promise<string[]>>(),
+    queryRows: vi.fn<() => Promise<InfluxRow[]>>(),
+  }
+
+  return dataSource
+}
+
 describe('useInfluxWorkbench', () => {
   beforeEach(() => {
     if (
@@ -193,5 +209,21 @@ panels:
     expect(ran).toBe(true)
     expect(dataSource.queryRows).toHaveBeenCalled()
     expect(workbench.dashboardPanelRows.value['imported-panel']).toHaveLength(1)
+  })
+
+  it('captures connection failure metadata when ping fails', async () => {
+    const dataSource = createPingFailureDataSource()
+    const workbench = useInfluxWorkbench({
+      createDataSource: () => dataSource,
+    })
+
+    const connected = await workbench.connect()
+
+    expect(connected).toBe(false)
+    expect(workbench.lastConnectionFailure.value?.phase).toBe('ping')
+    expect(workbench.lastConnectionFailure.value?.error.message).toBe(
+      'Token rejected',
+    )
+    expect(workbench.status.value.type).toBe('error')
   })
 })

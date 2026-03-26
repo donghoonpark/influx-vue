@@ -31,6 +31,10 @@ const props = defineProps<{
   workbench: InfluxWorkbenchController
 }>()
 
+const emit = defineEmits<{
+  disconnect: []
+}>()
+
 const isQueryView = ref(false)
 
 const aggregateWindowOptions = [
@@ -204,7 +208,7 @@ function updateQueryText(event: Event) {
           tertiary
           type="warning"
           :render-icon="renderNaiveIcon(LogOutOutline)"
-          @click="workbench.disconnect()"
+          @click="emit('disconnect')"
         >
           Disconnect
         </NButton>

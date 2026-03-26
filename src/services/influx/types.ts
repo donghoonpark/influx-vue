@@ -7,6 +7,14 @@ export interface InfluxConnectionConfig {
   bucket?: string
 }
 
+export type InfluxConnectPhase = 'validation' | 'ping' | 'schema'
+
+export interface InfluxConnectionFailure {
+  error: Error
+  connection: InfluxConnectionConfig
+  phase: InfluxConnectPhase
+}
+
 export interface InfluxPingResult {
   name?: string
   message?: string

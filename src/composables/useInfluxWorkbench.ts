@@ -21,6 +21,7 @@ import type {
   AggregateFunction,
   InfluxBucket,
   InfluxConnectionConfig,
+  InfluxConnectionFailure,
   InfluxExplorerDataSource,
   InfluxPingResult,
   InfluxRow,
@@ -93,6 +94,17 @@ function intersectSelections(values: string[], allowed: string[]): string[] {
   return values.filter((value) => allowed.includes(value))
 }
 
+function snapshotConnection(
+  connection: InfluxConnectionConfig,
+): InfluxConnectionConfig {
+  return {
+    url: connection.url,
+    org: connection.org,
+    token: connection.token,
+    bucket: connection.bucket,
+  }
+}
+
 export interface UseInfluxWorkbenchOptions {
   createDataSource?: (
     config: InfluxConnectionConfig,
@@ -118,6 +130,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     ),
   )
   const health = ref<InfluxPingResult | null>(null)
+  const lastConnectionFailure = ref<InfluxConnectionFailure | null>(null)
 
   const buckets = ref<InfluxBucket[]>([])
   const measurements = ref<string[]>([])
@@ -244,6 +257,32 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   function clearResults() {
     rows.value = []
     hasExecutedQuery.value = false
+  }
+
+  function setConnectionFailure(
+    phase: InfluxConnectionFailure['phase'],
+    error: unknown,
+    failedConnection: InfluxConnectionConfig,
+  ) {
+    const normalizedError =
+      error instanceof Error ? error : new Error(String(error))
+
+    lastConnectionFailure.value = {
+      error: normalizedError,
+      connection: failedConnection,
+      phase,
+    }
+
+    dataSource.value = null
+    health.value = null
+    buckets.value = []
+    clearMeasurementState()
+
+    status.value = createStatusMessage(
+      'error',
+      'Connection failed',
+      normalizedError.message || 'Unknown connection error.',
+    )
   }
 
   function clearDashboardPanelArtifacts(panelId?: string) {
@@ -396,15 +435,26 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   }
 
   async function connect() {
+    const requestedConnection = snapshotConnection(connection)
+    lastConnectionFailure.value = null
+
     if (
       !connection.url.trim() ||
       !connection.org.trim() ||
       !connection.token.trim()
     ) {
+      const error = new Error(
+        'Provide the InfluxDB URL, organization, and token before connecting.',
+      )
+      lastConnectionFailure.value = {
+        error,
+        connection: requestedConnection,
+        phase: 'validation',
+      }
       status.value = createStatusMessage(
         'warning',
         'Missing connection details',
-        'Provide the InfluxDB URL, organization, and token before connecting.',
+        error.message,
       )
       return false
     }
@@ -412,11 +462,24 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     isConnecting.value = true
 
     try {
-      const nextDataSource = createDataSource({ ...connection })
-      const [nextHealth, nextBuckets] = await Promise.all([
-        nextDataSource.ping(),
-        nextDataSource.listBuckets(),
-      ])
+      const nextDataSource = createDataSource(requestedConnection)
+      let nextHealth: InfluxPingResult
+
+      try {
+        nextHealth = await nextDataSource.ping()
+      } catch (error) {
+        setConnectionFailure('ping', error, requestedConnection)
+        return false
+      }
+
+      let nextBuckets: InfluxBucket[]
+
+      try {
+        nextBuckets = await nextDataSource.listBuckets()
+      } catch (error) {
+        setConnectionFailure('schema', error, requestedConnection)
+        return false
+      }
 
       dataSource.value = nextDataSource
       health.value = nextHealth
@@ -439,8 +502,17 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
       selectedBucket.value = nextBucket
       connection.bucket = nextBucket
-      await hydrateBucket(nextBucket)
+      try {
+        await hydrateBucket(nextBucket)
+      } catch (error) {
+        setConnectionFailure('schema', error, {
+          ...requestedConnection,
+          bucket: nextBucket,
+        })
+        return false
+      }
       writeStoredConnection({ ...connection })
+      lastConnectionFailure.value = null
 
       status.value = createStatusMessage(
         'success',
@@ -449,15 +521,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       )
       return true
     } catch (error) {
-      dataSource.value = null
-      health.value = null
-      buckets.value = []
-      clearMeasurementState()
-      status.value = createStatusMessage(
-        'error',
-        'Connection failed',
-        error instanceof Error ? error.message : 'Unknown connection error.',
-      )
+      setConnectionFailure('schema', error, requestedConnection)
       return false
     } finally {
       isConnecting.value = false
@@ -467,6 +531,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   function disconnect() {
     dataSource.value = null
     health.value = null
+    lastConnectionFailure.value = null
     status.value = createStatusMessage(
       'info',
       'Disconnected',
@@ -849,6 +914,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   return {
     connection,
     health,
+    lastConnectionFailure,
     status,
     buckets,
     measurements,

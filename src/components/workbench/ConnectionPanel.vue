@@ -19,6 +19,10 @@ const props = defineProps<{
   workbench: InfluxWorkbenchController
 }>()
 
+const emit = defineEmits<{
+  connect: []
+}>()
+
 function updateBucket(value: string) {
   props.workbench.connection.bucket = value
 }
@@ -89,7 +93,7 @@ function updateBucket(value: string) {
           type="primary"
           :loading="workbench.isConnecting.value"
           :render-icon="renderNaiveIcon(LogInOutline)"
-          @click="workbench.connect()"
+          @click="emit('connect')"
         >
           Connect
         </NButton>

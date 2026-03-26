@@ -14,31 +14,35 @@ import ConnectionPanel from '@/components/workbench/ConnectionPanel.vue'
 import ExplorerPanel from '@/components/workbench/ExplorerPanel.vue'
 import ResultPanel from '@/components/workbench/ResultPanel.vue'
 import type { InfluxConnectionConfig } from '@/services/influx/types'
-import type { InfluxWorkbenchSectionKey } from '@/components/workbench/types'
 import type { StatusMessage } from '@/services/influx/types'
+import type {
+  InfluxWorkbenchConnectError,
+  InfluxWorkbenchConnectEvent,
+  InfluxWorkbenchDisconnectEvent,
+  InfluxWorkbenchExposed,
+  InfluxWorkbenchProps,
+} from '@/components/workbench/types'
 import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
-const props = withDefaults(
-  defineProps<{
-    title?: string
-    subtitle?: string
-    autoConnect?: boolean
-    autoRunQuery?: boolean
-    initialConnection?: Partial<InfluxConnectionConfig>
-    hiddenSections?: InfluxWorkbenchSectionKey[]
-  }>(),
-  {
-    title: 'Influx Vue Workbench',
-    subtitle:
-      'Bucket에서 measurement, field, tag filter를 선택하고, Flux와 결과/대시보드를 한 화면에서 확인하는 InfluxDB explorer입니다.',
-    autoConnect: false,
-    autoRunQuery: false,
-    initialConnection: undefined,
-    hiddenSections: () => [],
-  },
-)
+const props = withDefaults(defineProps<InfluxWorkbenchProps>(), {
+  title: 'Influx Vue Workbench',
+  subtitle:
+    'Bucket에서 measurement, field, tag filter를 선택하고, Flux와 결과/대시보드를 한 화면에서 확인하는 InfluxDB explorer입니다.',
+  autoConnect: false,
+  autoRunQuery: false,
+  initialConnection: undefined,
+  hiddenSections: () => [],
+})
 
-const workbench = useInfluxWorkbench()
+const emit = defineEmits<{
+  connect: [payload: InfluxWorkbenchConnectEvent]
+  'connect-error': [payload: InfluxWorkbenchConnectError]
+  disconnect: [payload: InfluxWorkbenchDisconnectEvent]
+}>()
+
+const workbench = useInfluxWorkbench({
+  createDataSource: props.createDataSource,
+})
 
 const showHero = computed(() => !props.hiddenSections.includes('hero'))
 const showConnectionPanel = computed(
@@ -60,6 +64,52 @@ const showConnectionOverlay = computed(
   () => showConnectionPanel.value && !workbench.hasConnection.value,
 )
 
+function currentConnection(): InfluxConnectionConfig {
+  return {
+    url: workbench.connection.url,
+    org: workbench.connection.org,
+    token: workbench.connection.token,
+    bucket: workbench.connection.bucket,
+  }
+}
+
+function applyConnection(connection: Partial<InfluxConnectionConfig>) {
+  Object.assign(workbench.connection, connection)
+
+  if ('bucket' in connection) {
+    workbench.selectedBucket.value = connection.bucket ?? ''
+  }
+}
+
+async function connectWorkbench() {
+  const connected = await workbench.connect()
+
+  if (connected) {
+    emit('connect', {
+      connection: currentConnection(),
+      health: workbench.health.value,
+      bucketCount: workbench.buckets.value.length,
+    })
+    return true
+  }
+
+  if (workbench.lastConnectionFailure.value) {
+    emit('connect-error', workbench.lastConnectionFailure.value)
+  }
+
+  return false
+}
+
+function disconnectWorkbench() {
+  const connection = currentConnection()
+  workbench.disconnect()
+  emit('disconnect', { connection })
+}
+
+async function runQueryWorkbench() {
+  return workbench.runQuery()
+}
+
 watch(
   () =>
     `${workbench.status.value.type}:${workbench.status.value.title}:${workbench.status.value.message}`,
@@ -80,24 +130,28 @@ watch(
 
 async function initializeWorkbench() {
   if (props.initialConnection) {
-    Object.assign(workbench.connection, props.initialConnection)
-    if (props.initialConnection.bucket) {
-      workbench.selectedBucket.value = props.initialConnection.bucket
-    }
+    applyConnection(props.initialConnection)
   }
 
   if (!shouldAutoConnect.value) {
     return
   }
 
-  const connected = await workbench.connect()
+  const connected = await connectWorkbench()
   if (connected && props.autoRunQuery) {
-    await workbench.runQuery()
+    await runQueryWorkbench()
   }
 }
 
 onMounted(async () => {
   await initializeWorkbench()
+})
+
+defineExpose<InfluxWorkbenchExposed>({
+  applyConnection,
+  connect: connectWorkbench,
+  disconnect: disconnectWorkbench,
+  runQuery: runQueryWorkbench,
 })
 </script>
 
@@ -212,13 +266,16 @@ onMounted(async () => {
         class="surface-card explorer-surface"
         :bordered="false"
       >
-        <ExplorerPanel :workbench="workbench" />
+        <ExplorerPanel
+          :workbench="workbench"
+          @disconnect="disconnectWorkbench"
+        />
       </NCard>
 
       <div v-if="showConnectionOverlay" class="connection-overlay">
         <div class="overlay-backdrop" />
         <NCard class="connection-card" :bordered="false">
-          <ConnectionPanel :workbench="workbench" />
+          <ConnectionPanel :workbench="workbench" @connect="connectWorkbench" />
         </NCard>
       </div>
     </div>
