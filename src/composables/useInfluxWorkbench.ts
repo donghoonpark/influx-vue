@@ -131,10 +131,10 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const tagFilters = ref<TagFilter[]>([])
 
   const queryMode = ref<QueryMode>('builder')
-  const rangePreset = ref<RangePresetKey>('last_24h')
+  const rangePreset = ref<RangePresetKey>('last_1h')
   const customStart = ref('')
   const customStop = ref('')
-  const aggregateWindow = ref('15m')
+  const aggregateWindow = ref('1s')
   const aggregateFunction = ref<AggregateFunction>('mean')
   const limit = ref(2000)
   const rawFlux = ref('')

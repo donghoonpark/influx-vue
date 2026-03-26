@@ -34,6 +34,13 @@ const props = defineProps<{
 const isQueryView = ref(false)
 
 const aggregateWindowOptions = [
+  '100ms',
+  '250ms',
+  '500ms',
+  '1s',
+  '5s',
+  '10s',
+  '30s',
   '1m',
   '5m',
   '15m',
@@ -137,7 +144,7 @@ function updateTagValues(index: number, value: Array<string | number> | null) {
 
 function updateRangePreset(value: string | number | null) {
   props.workbench.rangePreset.value = String(
-    value ?? 'last_24h',
+    value ?? 'last_1h',
   ) as RangePresetKey
 }
 
@@ -253,7 +260,7 @@ function updateQueryText(event: Event) {
               tag
               :value="workbench.aggregateWindow.value"
               :options="aggregateWindowOptions"
-              placeholder="15m"
+              placeholder="1s"
               @update:value="updateAggregateWindow"
             />
           </NFormItem>

@@ -30,7 +30,7 @@ function timestampAt(
 }
 
 export function buildSeedBuckets(nowMs = Date.now()): SeedBucketDefinition[] {
-  const sampleCount = 240
+  const sampleCount = 1200
   const stepMs = 100
 
   const demoRandom = createPseudoRandom(11)
