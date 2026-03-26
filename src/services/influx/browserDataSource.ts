@@ -45,7 +45,7 @@ async function requestJson<T>(
 }
 
 async function ping(baseUrl: string, token: string): Promise<InfluxPingResult> {
-  const response = await fetch(`${baseUrl}/health`, {
+  const response = await fetch(`${baseUrl}/api/v2/buckets?limit=1`, {
     headers: {
       Accept: 'application/json',
       Authorization: `Token ${token}`,
@@ -56,7 +56,14 @@ async function ping(baseUrl: string, token: string): Promise<InfluxPingResult> {
     throw new Error(await readErrorMessage(response))
   }
 
-  return (await response.json()) as InfluxPingResult
+  await response.json()
+
+  return {
+    name: 'InfluxDB',
+    message: 'CORS-compatible browser connectivity check succeeded.',
+    status: 'pass',
+    version: response.headers.get('X-Influxdb-Version') ?? undefined,
+  }
 }
 
 export function createBrowserInfluxDataSource(config: InfluxConnectionConfig) {
