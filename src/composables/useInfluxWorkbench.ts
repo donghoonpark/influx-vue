@@ -144,7 +144,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const tagFilters = ref<TagFilter[]>([])
 
   const queryMode = ref<QueryMode>('builder')
-  const rangePreset = ref<RangePresetKey>('last_1h')
+  const rangePreset = ref<RangePresetKey>('last_24h')
   const customStart = ref('')
   const customStop = ref('')
   const aggregateWindow = ref('1s')

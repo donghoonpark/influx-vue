@@ -148,7 +148,7 @@ function updateTagValues(index: number, value: Array<string | number> | null) {
 
 function updateRangePreset(value: string | number | null) {
   props.workbench.rangePreset.value = String(
-    value ?? 'last_1h',
+    value ?? 'last_24h',
   ) as RangePresetKey
 }
 
