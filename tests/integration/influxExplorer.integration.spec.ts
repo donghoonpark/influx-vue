@@ -17,8 +17,13 @@ describe('Influx explorer integration', () => {
 
   it('discovers buckets, measurements, fields, tags, and tag values from a real container', async () => {
     const buckets = await harness.dataSource.listBuckets()
+    const bucketNames = buckets.map((bucket) => bucket.name)
     const measurements = await harness.dataSource.listMeasurements({
       bucket: harness.config.bucket ?? 'demo-metrics',
+      start: SCHEMA_LOOKBACK,
+    })
+    const sensorMeasurements = await harness.dataSource.listMeasurements({
+      bucket: 'edge-sensors',
       start: SCHEMA_LOOKBACK,
     })
     const fields = await harness.dataSource.listFieldKeys({
@@ -38,8 +43,18 @@ describe('Influx explorer integration', () => {
       start: SCHEMA_LOOKBACK,
     })
 
-    expect(buckets.map((bucket) => bucket.name)).toContain('demo-metrics')
+    expect(bucketNames).toEqual(
+      expect.arrayContaining([
+        'demo-metrics',
+        'edge-sensors',
+        'payments-stream',
+        'api-latency',
+      ]),
+    )
     expect(measurements).toEqual(expect.arrayContaining(['memory', 'system']))
+    expect(sensorMeasurements).toEqual(
+      expect.arrayContaining(['humidity', 'temperature']),
+    )
     expect(fields).toEqual(
       expect.arrayContaining(['usage_system', 'usage_user']),
     )

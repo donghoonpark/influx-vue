@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises'
 
-import { InfluxDB, Point } from '@influxdata/influxdb-client'
+import { InfluxDB } from '@influxdata/influxdb-client'
 import type { WritePrecisionType } from '@influxdata/influxdb-client'
 import { GenericContainer, type StartedTestContainer } from 'testcontainers'
 
@@ -11,6 +11,10 @@ import type {
   InfluxPingResult,
   InfluxRow,
 } from '@/services/influx/types'
+import {
+  buildSeedBuckets,
+  type SeedBucketDefinition,
+} from '../../../scripts/influxSeedCatalog'
 
 interface InfluxHarness {
   container: StartedTestContainer
@@ -23,6 +27,22 @@ const BUCKET = 'demo-metrics'
 const TOKEN = 'influx-vue-admin-token'
 const USERNAME = 'influx'
 const PASSWORD = 'influx-password-123'
+
+interface InfluxOrgListResponse {
+  orgs?: Array<{
+    id: string
+    name: string
+  }>
+}
+
+interface InfluxBucket {
+  id: string
+  name: string
+}
+
+interface InfluxBucketListResponse {
+  buckets?: InfluxBucket[]
+}
 
 async function readErrorMessage(response: Response): Promise<string> {
   const contentType = response.headers.get('content-type') ?? ''
@@ -42,11 +62,15 @@ async function requestJson<T>(
   baseUrl: string,
   token: string,
   path: string,
+  init: RequestInit = {},
 ): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
     headers: {
       Accept: 'application/json',
       Authorization: `Token ${token}`,
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
     },
   })
 
@@ -55,6 +79,57 @@ async function requestJson<T>(
   }
 
   return (await response.json()) as T
+}
+
+async function resolveOrgId(baseUrl: string, token: string): Promise<string> {
+  const payload = await requestJson<InfluxOrgListResponse>(
+    baseUrl,
+    token,
+    `/api/v2/orgs?org=${encodeURIComponent(ORG)}`,
+  )
+  const orgId = payload.orgs?.[0]?.id
+
+  if (!orgId) {
+    throw new Error(`Could not resolve org "${ORG}" from ${baseUrl}`)
+  }
+
+  return orgId
+}
+
+async function findBucket(
+  baseUrl: string,
+  token: string,
+  name: string,
+): Promise<InfluxBucket | undefined> {
+  const payload = await requestJson<InfluxBucketListResponse>(
+    baseUrl,
+    token,
+    `/api/v2/buckets?org=${encodeURIComponent(ORG)}&limit=100`,
+  )
+
+  return payload.buckets?.find((bucket) => bucket.name === name)
+}
+
+async function ensureBucket(
+  baseUrl: string,
+  token: string,
+  orgId: string,
+  bucket: SeedBucketDefinition,
+): Promise<InfluxBucket> {
+  const existingBucket = await findBucket(baseUrl, token, bucket.name)
+
+  if (existingBucket) {
+    return existingBucket
+  }
+
+  return requestJson<InfluxBucket>(baseUrl, token, '/api/v2/buckets', {
+    method: 'POST',
+    body: JSON.stringify({
+      orgID: orgId,
+      name: bucket.name,
+      description: bucket.description,
+    }),
+  })
 }
 
 async function ping(baseUrl: string, token: string): Promise<InfluxPingResult> {
@@ -90,45 +165,31 @@ async function waitForHealthy(baseUrl: string, token: string) {
 }
 
 async function seedData(baseUrl: string) {
-  const precision: WritePrecisionType = 's'
+  const precision: WritePrecisionType = 'ms'
   const influxDB = new InfluxDB({ url: baseUrl, token: TOKEN })
-  const writeApi = influxDB.getWriteApi(ORG, BUCKET, precision)
+  const orgId = await resolveOrgId(baseUrl, TOKEN)
+  const seedBuckets = buildSeedBuckets()
+  const resolvedBuckets: Array<{
+    definition: SeedBucketDefinition
+    bucket: InfluxBucket
+  }> = []
 
-  const nowSeconds = Math.floor(Date.now() / 1000)
-  const points: Point[] = []
-
-  for (let index = 5; index >= 0; index -= 1) {
-    const timestamp = nowSeconds - index * 3600
-
-    points.push(
-      new Point('system')
-        .tag('host', 'alpha')
-        .tag('region', 'ap-northeast-2')
-        .floatField('usage_user', 42 + index)
-        .floatField('usage_system', 16 + index)
-        .timestamp(timestamp),
-    )
-
-    points.push(
-      new Point('system')
-        .tag('host', 'beta')
-        .tag('region', 'us-west-2')
-        .floatField('usage_user', 32 + index)
-        .floatField('usage_system', 11 + index)
-        .timestamp(timestamp),
-    )
-
-    points.push(
-      new Point('memory')
-        .tag('host', 'alpha')
-        .tag('region', 'ap-northeast-2')
-        .floatField('used_percent', 71 + index)
-        .timestamp(timestamp),
-    )
+  for (const seedBucket of seedBuckets) {
+    resolvedBuckets.push({
+      definition: seedBucket,
+      bucket: await ensureBucket(baseUrl, TOKEN, orgId, seedBucket),
+    })
   }
 
-  writeApi.writePoints(points)
-  await writeApi.close()
+  for (const resolvedBucket of resolvedBuckets) {
+    const writeApi = influxDB.getWriteApi(
+      ORG,
+      resolvedBucket.bucket.id,
+      precision,
+    )
+    writeApi.writePoints(resolvedBucket.definition.points)
+    await writeApi.close()
+  }
 }
 
 export async function startInfluxHarness(): Promise<InfluxHarness> {
