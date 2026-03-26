@@ -212,7 +212,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   )
 
   const aggregateFunctionOptions = AGGREGATE_FUNCTIONS.map((value) => ({
-    label: value,
+    label: value === 'none' ? 'None' : value,
     value,
   }))
 

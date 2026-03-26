@@ -52,4 +52,22 @@ describe('buildFluxQuery', () => {
     expect(flux).not.toContain('aggregateWindow')
     expect(flux).toContain('|> filter(fn: (r) => r._field == "used_percent")')
   })
+
+  it('skips aggregateWindow when aggregate function is set to none', () => {
+    const flux = buildFluxQuery({
+      bucket: 'demo-metrics',
+      measurement: 'system',
+      fields: ['usage_user'],
+      rangePreset: 'last_1h',
+      customStart: '',
+      customStop: '',
+      aggregateWindow: '1s',
+      aggregateFunction: 'none',
+      limit: 5000,
+      tagFilters: [],
+    })
+
+    expect(flux).not.toContain('aggregateWindow')
+    expect(flux).toContain('|> sort(columns: ["_time"])')
+  })
 })

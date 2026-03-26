@@ -258,6 +258,7 @@ function updateQueryText(event: Event) {
             <NSelect
               filterable
               tag
+              :disabled="workbench.aggregateFunction.value === 'none'"
               :value="workbench.aggregateWindow.value"
               :options="aggregateWindowOptions"
               placeholder="1s"

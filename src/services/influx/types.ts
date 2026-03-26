@@ -60,6 +60,7 @@ export interface TagFilter {
 }
 
 export type AggregateFunction =
+  | 'none'
   | 'mean'
   | 'sum'
   | 'max'

@@ -21,6 +21,7 @@ export const RANGE_PRESETS: RangePresetDefinition[] = [
 ]
 
 export const AGGREGATE_FUNCTIONS: AggregateFunction[] = [
+  'none',
   'mean',
   'sum',
   'max',
@@ -191,7 +192,7 @@ export function buildFluxQuery(state: QueryBuilderState): string {
     .filter((line): line is string => Boolean(line))
     .forEach((line) => lines.push(line))
 
-  if (state.aggregateWindow.trim()) {
+  if (state.aggregateFunction !== 'none' && state.aggregateWindow.trim()) {
     lines.push(
       `  |> aggregateWindow(every: ${state.aggregateWindow.trim()}, fn: ${state.aggregateFunction}, createEmpty: false)`,
     )

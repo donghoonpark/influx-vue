@@ -82,4 +82,32 @@ describe('dashboard helpers', () => {
       'from(bucket: "demo-metrics") |> range(start: -1h)',
     )
   })
+
+  it('accepts aggregate function none from dashboard yaml', () => {
+    const parsed = parseDashboardYaml(`
+name: No aggregation
+panels:
+  - id: raw-points
+    title: Raw points
+    visualization: chart
+    queryMode: builder
+    query:
+      bucket: demo-metrics
+      measurement: system
+      fields:
+        - usage_user
+      rangePreset: last_1h
+      customStart: ""
+      customStop: ""
+      aggregateWindow: 1s
+      aggregateFunction: none
+      limit: 5000
+      tagFilters: []
+`)
+
+    expect(parsed.panels[0]?.query.aggregateFunction).toBe('none')
+    expect(buildDashboardPanelFlux(parsed.panels[0]!)).not.toContain(
+      'aggregateWindow',
+    )
+  })
 })

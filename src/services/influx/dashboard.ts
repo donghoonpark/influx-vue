@@ -2,6 +2,7 @@ import { parse, stringify } from 'yaml'
 
 import { buildFluxQuery } from '@/services/influx/flux'
 import type {
+  AggregateFunction,
   QueryBuilderState,
   QueryMode,
   RangePresetKey,
@@ -86,6 +87,23 @@ function toRangePreset(value: unknown): RangePresetKey {
     : 'last_24h'
 }
 
+function toAggregateFunction(value: unknown): AggregateFunction {
+  const normalized = String(value ?? 'mean')
+  const allowed: AggregateFunction[] = [
+    'none',
+    'mean',
+    'sum',
+    'max',
+    'min',
+    'last',
+    'count',
+  ]
+
+  return allowed.includes(normalized as AggregateFunction)
+    ? (normalized as AggregateFunction)
+    : 'mean'
+}
+
 function toColumns(value: unknown): InfluxDashboardColumns {
   const normalized = Number(value)
   return DASHBOARD_COLUMN_OPTIONS.includes(normalized as InfluxDashboardColumns)
@@ -135,9 +153,7 @@ function normalizeQueryBuilderState(value: unknown): QueryBuilderState {
     customStart: String(record.customStart ?? ''),
     customStop: String(record.customStop ?? ''),
     aggregateWindow: String(record.aggregateWindow ?? ''),
-    aggregateFunction: String(
-      record.aggregateFunction ?? 'mean',
-    ) as QueryBuilderState['aggregateFunction'],
+    aggregateFunction: toAggregateFunction(record.aggregateFunction),
     limit: Number(record.limit ?? 2000) || 2000,
     tagFilters: toTagFilters(record.tagFilters),
   }
