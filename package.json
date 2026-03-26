@@ -23,7 +23,7 @@
     "preview": "vite preview",
     "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "vitest run --config vitest.unit.config.ts --coverage",
-    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration": "if [ -z \"${DOCKER_HOST:-}\" ] && [ -S \"$HOME/.colima/docker.sock\" ]; then export DOCKER_HOST=\"unix://$HOME/.colima/docker.sock\"; export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=\"${TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE:-/var/run/docker.sock}\"; fi; vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest --config vitest.unit.config.ts",
     "db:up": "docker compose up -d influxdb",
     "db:down": "docker compose down -v",

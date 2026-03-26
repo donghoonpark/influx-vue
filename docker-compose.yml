@@ -1,0 +1,18 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: influx-vue-influxdb
+    ports:
+      - '8086:8086'
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: influx
+      DOCKER_INFLUXDB_INIT_PASSWORD: influx-password-123
+      DOCKER_INFLUXDB_INIT_ORG: influx-vue
+      DOCKER_INFLUXDB_INIT_BUCKET: demo-metrics
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: influx-vue-admin-token
+    volumes:
+      - influx-vue-data:/var/lib/influxdb2
+
+volumes:
+  influx-vue-data:
