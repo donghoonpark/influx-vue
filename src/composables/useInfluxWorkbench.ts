@@ -131,6 +131,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const rawFlux = ref('')
 
   const rows = ref<InfluxRow[]>([])
+  const hasExecutedQuery = ref(false)
   const isConnecting = ref(false)
   const isSchemaLoading = ref(false)
   const isQueryRunning = ref(false)
@@ -214,6 +215,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
   function clearResults() {
     rows.value = []
+    hasExecutedQuery.value = false
   }
 
   async function loadTagValues(tagKey: string) {
@@ -333,7 +335,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         'Missing connection details',
         'Provide the InfluxDB URL, organization, and token before connecting.',
       )
-      return
+      return false
     }
 
     isConnecting.value = true
@@ -357,7 +359,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
           'Connected, but no buckets were found',
           'The token is valid, but it does not expose any buckets through the API.',
         )
-        return
+        return false
       }
 
       const nextBucket =
@@ -374,6 +376,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         'Connection established',
         `Connected to ${nextHealth.name ?? 'InfluxDB'} and loaded ${nextBuckets.length} bucket(s).`,
       )
+      return true
     } catch (error) {
       dataSource.value = null
       health.value = null
@@ -384,6 +387,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         'Connection failed',
         error instanceof Error ? error.message : 'Unknown connection error.',
       )
+      return false
     } finally {
       isConnecting.value = false
     }
@@ -465,10 +469,11 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         'Query is incomplete',
         'Select a bucket, measurement, and field before running a query.',
       )
-      return
+      return false
     }
 
     isQueryRunning.value = true
+    hasExecutedQuery.value = true
 
     try {
       rows.value = await dataSource.value.queryRows(currentFlux.value)
@@ -479,12 +484,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
           ? `Fetched ${rows.value.length} row(s) from InfluxDB.`
           : 'The query ran successfully, but the selected range returned no rows.',
       )
+      return true
     } catch (error) {
       status.value = createStatusMessage(
         'error',
         'Query failed',
         error instanceof Error ? error.message : 'Unknown query error.',
       )
+      return false
     } finally {
       isQueryRunning.value = false
     }
@@ -514,6 +521,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     limit,
     rawFlux,
     rows,
+    hasExecutedQuery,
     summary,
     generatedFlux,
     currentFlux,
@@ -535,3 +543,5 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     runQuery,
   }
 }
+
+export type InfluxWorkbenchController = ReturnType<typeof useInfluxWorkbench>
