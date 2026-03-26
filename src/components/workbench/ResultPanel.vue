@@ -3,22 +3,12 @@ import { computed, ref, watch } from 'vue'
 
 import {
   DocumentTextOutline,
-  LayersOutline,
   RefreshOutline,
   SaveOutline,
   GridOutline,
   OpenOutline,
 } from '@vicons/ionicons5'
-import {
-  NButton,
-  NCard,
-  NEmpty,
-  NFlex,
-  NPopover,
-  NTabPane,
-  NTabs,
-  NTag,
-} from 'naive-ui'
+import { NButton, NCard, NEmpty, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
@@ -117,34 +107,6 @@ function dashboardRows(panelId: string) {
 
 <template>
   <div class="panel-shell">
-    <div class="panel-header">
-      <NFlex :size="8" align="center">
-        <NPopover trigger="hover">
-          <template #trigger>
-            <NButton
-              quaternary
-              size="small"
-              :render-icon="renderNaiveIcon(LayersOutline)"
-            >
-              Selection
-            </NButton>
-          </template>
-          <div class="selection-popover">
-            <div class="selection-row">
-              <span>Bucket</span>
-              <strong>{{ workbench.selectedBucket.value || 'pending' }}</strong>
-            </div>
-            <div class="selection-row">
-              <span>Measurement</span>
-              <strong>{{
-                workbench.selectedMeasurement.value || 'pending'
-              }}</strong>
-            </div>
-          </div>
-        </NPopover>
-      </NFlex>
-    </div>
-
     <NTabs v-model:value="resultTab" type="line" animated>
       <NTabPane name="chart" tab="Chart">
         <InfluxResultChart :rows="workbench.rows.value" />
@@ -289,13 +251,6 @@ function dashboardRows(panelId: string) {
   min-width: 0;
 }
 
-.panel-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: flex-end;
-  gap: 16px;
-}
-
 .yaml-shell {
   display: flex;
   flex-direction: column;
@@ -334,20 +289,6 @@ function dashboardRows(panelId: string) {
   padding: 18px 0;
 }
 
-.selection-popover {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 200px;
-}
-
-.selection-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-}
-
 .dashboard-grid {
   display: grid;
   gap: 16px;
@@ -380,7 +321,6 @@ function dashboardRows(panelId: string) {
 }
 
 @media (max-width: 1200px) {
-  .panel-header,
   .yaml-toolbar,
   .dashboard-card-header {
     flex-direction: column;

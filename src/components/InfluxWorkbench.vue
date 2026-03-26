@@ -4,6 +4,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import {
   AnalyticsOutline,
   InformationCircleOutline,
+  LayersOutline,
   StatsChartOutline,
 } from '@vicons/ionicons5'
 import { NAlert, NButton, NCard, NFlex, NPopover, NTag } from 'naive-ui'
@@ -124,6 +125,31 @@ onMounted(async () => {
                 : 'Connection required'
             }}
           </NTag>
+          <NPopover trigger="hover">
+            <template #trigger>
+              <NButton
+                quaternary
+                size="small"
+                :render-icon="renderNaiveIcon(LayersOutline)"
+              >
+                Selection
+              </NButton>
+            </template>
+            <div class="popover-content stats-popover">
+              <div class="stat-row">
+                <span>Bucket</span>
+                <strong>{{
+                  workbench.selectedBucket.value || 'pending'
+                }}</strong>
+              </div>
+              <div class="stat-row">
+                <span>Measurement</span>
+                <strong>{{
+                  workbench.selectedMeasurement.value || 'pending'
+                }}</strong>
+              </div>
+            </div>
+          </NPopover>
           <NPopover trigger="hover">
             <template #trigger>
               <NButton
