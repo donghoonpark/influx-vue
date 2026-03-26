@@ -3,12 +3,22 @@ import { computed, ref, watch } from 'vue'
 
 import {
   DocumentTextOutline,
+  LayersOutline,
   RefreshOutline,
   SaveOutline,
   GridOutline,
   OpenOutline,
 } from '@vicons/ionicons5'
-import { NButton, NCard, NEmpty, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
+import {
+  NButton,
+  NCard,
+  NEmpty,
+  NFlex,
+  NPopover,
+  NTabPane,
+  NTabs,
+  NTag,
+} from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
@@ -109,12 +119,29 @@ function dashboardRows(panelId: string) {
   <div class="panel-shell">
     <div class="panel-header">
       <NFlex :size="8" align="center">
-        <NTag type="info">{{
-          workbench.selectedBucket.value || 'bucket pending'
-        }}</NTag>
-        <NTag type="success">
-          {{ workbench.selectedMeasurement.value || 'measurement pending' }}
-        </NTag>
+        <NPopover trigger="hover">
+          <template #trigger>
+            <NButton
+              quaternary
+              size="small"
+              :render-icon="renderNaiveIcon(LayersOutline)"
+            >
+              Selection
+            </NButton>
+          </template>
+          <div class="selection-popover">
+            <div class="selection-row">
+              <span>Bucket</span>
+              <strong>{{ workbench.selectedBucket.value || 'pending' }}</strong>
+            </div>
+            <div class="selection-row">
+              <span>Measurement</span>
+              <strong>{{
+                workbench.selectedMeasurement.value || 'pending'
+              }}</strong>
+            </div>
+          </div>
+        </NPopover>
       </NFlex>
     </div>
 
@@ -305,6 +332,20 @@ function dashboardRows(panelId: string) {
 
 .dashboard-empty {
   padding: 18px 0;
+}
+
+.selection-popover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.selection-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
 }
 
 .dashboard-grid {
