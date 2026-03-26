@@ -6,6 +6,8 @@
 
 The quickest way to understand the project is to run the sample page first.
 
+![Influx Vue sample page](public/screenshots/sample-page.png)
+
 ```bash
 pnpm install
 pnpm db:up
