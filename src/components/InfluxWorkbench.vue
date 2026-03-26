@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 import { format } from 'date-fns'
 import {
   NAlert,
   NButton,
   NCard,
+  NCheckbox,
+  NCheckboxGroup,
   NCode,
   NEmpty,
   NFlex,
@@ -30,9 +32,23 @@ import InfluxResultTable from '@/components/InfluxResultTable.vue'
 import type {
   AggregateFunction,
   InfluxBucket,
+  InfluxConnectionConfig,
   RangePresetKey,
   TagFilter,
 } from '@/services/influx/types'
+
+const props = withDefaults(
+  defineProps<{
+    autoConnect?: boolean
+    autoRunQuery?: boolean
+    initialConnection?: Partial<InfluxConnectionConfig>
+  }>(),
+  {
+    autoConnect: false,
+    autoRunQuery: false,
+    initialConnection: undefined,
+  },
+)
 
 const resultTab = ref<'chart' | 'table'>('chart')
 const workbench = useInfluxWorkbench()
@@ -41,20 +57,6 @@ const bucketOptions = computed(() =>
   workbench.buckets.value.map((bucket) => ({
     label: bucket.name,
     value: bucket.name,
-  })),
-)
-
-const measurementOptions = computed(() =>
-  workbench.measurements.value.map((measurement) => ({
-    label: measurement,
-    value: measurement,
-  })),
-)
-
-const fieldOptions = computed(() =>
-  workbench.fieldKeys.value.map((field) => ({
-    label: field,
-    value: field,
   })),
 )
 
@@ -126,6 +128,29 @@ function updateAggregateFunction(value: string | number | null) {
 function updateTagValues(index: number, value: Array<string | number> | null) {
   workbench.updateTagFilterValues(index, (value ?? []).map(String))
 }
+
+function updateSelectedMeasurement(measurement: string) {
+  void workbench.selectMeasurement(measurement)
+}
+
+onMounted(async () => {
+  if (props.initialConnection) {
+    Object.assign(workbench.connection, props.initialConnection)
+    if (props.initialConnection.bucket) {
+      workbench.selectedBucket.value = props.initialConnection.bucket
+    }
+  }
+
+  if (!props.autoConnect) {
+    return
+  }
+
+  await workbench.connect()
+
+  if (props.autoRunQuery && workbench.canRunQuery.value) {
+    await workbench.runQuery()
+  }
+})
 </script>
 
 <template>
@@ -288,32 +313,72 @@ function updateTagValues(index: number, value: Array<string | number> | null) {
                   "
                 />
               </NFormItem>
-
-              <NFormItem label="Measurement">
-                <NSelect
-                  :value="workbench.selectedMeasurement.value"
-                  :options="measurementOptions"
-                  filterable
-                  placeholder="Select a measurement"
-                  @update:value="
-                    (value) => workbench.selectMeasurement(String(value ?? ''))
-                  "
-                />
-              </NFormItem>
-
-              <NFormItem label="Fields">
-                <NSelect
-                  :value="workbench.selectedFields.value"
-                  :options="fieldOptions"
-                  filterable
-                  multiple
-                  clearable
-                  max-tag-count="responsive"
-                  placeholder="Choose one or more fields"
-                  @update:value="updateSelectedFields"
-                />
-              </NFormItem>
             </NForm>
+
+            <div class="explorer-shelves">
+              <div class="explorer-panel">
+                <div class="explorer-heading">
+                  <span>Measurements</span>
+                  <NTag size="small" type="info">
+                    {{ workbench.measurements.value.length }}
+                  </NTag>
+                </div>
+
+                <div
+                  v-if="workbench.measurements.value.length > 0"
+                  class="selection-list"
+                >
+                  <button
+                    v-for="measurement in workbench.measurements.value"
+                    :key="measurement"
+                    class="selection-item"
+                    :class="{
+                      active:
+                        measurement === workbench.selectedMeasurement.value,
+                    }"
+                    @click="updateSelectedMeasurement(measurement)"
+                  >
+                    {{ measurement }}
+                  </button>
+                </div>
+                <NEmpty
+                  v-else
+                  size="small"
+                  description="Select a bucket to load measurements."
+                />
+              </div>
+
+              <div class="explorer-panel">
+                <div class="explorer-heading">
+                  <span>Fields</span>
+                  <NTag size="small" type="success">
+                    {{ workbench.fieldKeys.value.length }}
+                  </NTag>
+                </div>
+
+                <NCheckboxGroup
+                  v-if="workbench.fieldKeys.value.length > 0"
+                  :value="workbench.selectedFields.value"
+                  @update:value="updateSelectedFields"
+                >
+                  <div class="selection-list">
+                    <label
+                      v-for="field in workbench.fieldKeys.value"
+                      :key="field"
+                      class="checkbox-item"
+                    >
+                      <NCheckbox :value="field" />
+                      <span>{{ field }}</span>
+                    </label>
+                  </div>
+                </NCheckboxGroup>
+                <NEmpty
+                  v-else
+                  size="small"
+                  description="Select a measurement to load fields."
+                />
+              </div>
+            </div>
 
             <NFlex class="measurement-meta" :size="8">
               <NTag type="info"
@@ -654,6 +719,70 @@ function updateTagValues(index: number, value: Array<string | number> | null) {
   overflow: auto;
 }
 
+.explorer-shelves {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.explorer-panel {
+  min-height: 280px;
+  padding: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.explorer-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.selection-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.selection-item {
+  width: 100%;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  border-radius: 12px;
+  background: white;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.selection-item:hover {
+  transform: translateY(-1px);
+  border-color: rgba(14, 165, 233, 0.38);
+}
+
+.selection-item.active {
+  border-color: rgba(20, 184, 166, 0.55);
+  background: rgba(236, 253, 245, 0.92);
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(203, 213, 225, 0.8);
+  border-radius: 12px;
+  background: white;
+}
+
 .native-datetime {
   width: 100%;
   min-height: 40px;
@@ -746,6 +875,7 @@ function updateTagValues(index: number, value: Array<string | number> | null) {
 }
 
 @media (max-width: 1200px) {
+  .explorer-shelves,
   .filter-row {
     grid-template-columns: 1fr;
   }
