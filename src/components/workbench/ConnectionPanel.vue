@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  NAlert,
   NButton,
   NFlex,
   NForm,
@@ -23,6 +24,23 @@ function updateBucket(value: string) {
 
 <template>
   <div class="panel-shell">
+    <div class="panel-copy">
+      <h2 class="panel-title">Connect to InfluxDB</h2>
+      <p class="panel-description">
+        Explorer와 Result 패널은 한 화면에서 함께 동작합니다. 먼저 연결을
+        완료하면 overlay가 사라지고 바로 탐색을 이어갈 수 있습니다.
+      </p>
+    </div>
+
+    <NAlert
+      :title="workbench.status.value.title"
+      :type="workbench.status.value.type"
+      :bordered="false"
+      class="status-alert"
+    >
+      {{ workbench.status.value.message }}
+    </NAlert>
+
     <NForm label-placement="top">
       <NGrid :cols="2" :x-gap="12">
         <NGi :span="2">
@@ -34,7 +52,7 @@ function updateBucket(value: string) {
           </NFormItem>
         </NGi>
 
-        <NGi :span="1">
+        <NGi>
           <NFormItem label="Organization">
             <NInput
               v-model:value="workbench.connection.org"
@@ -43,7 +61,7 @@ function updateBucket(value: string) {
           </NFormItem>
         </NGi>
 
-        <NGi :span="1">
+        <NGi>
           <NFormItem label="Default bucket">
             <NInput
               :value="workbench.connection.bucket ?? ''"
@@ -74,12 +92,16 @@ function updateBucket(value: string) {
           :loading="workbench.isConnecting.value"
           @click="workbench.connect()"
         >
-          Connect and load explorer
+          Connect
         </NButton>
       </NFlex>
 
       <NFlex v-if="workbench.health.value" class="health-tags" :size="8">
-        <NTag :type="workbench.health.value.status === 'pass' ? 'success' : 'warning'">
+        <NTag
+          :type="
+            workbench.health.value.status === 'pass' ? 'success' : 'warning'
+          "
+        >
           {{ workbench.health.value.status ?? 'unknown' }}
         </NTag>
         <NTag type="info">{{ workbench.health.value.name ?? 'InfluxDB' }}</NTag>
@@ -93,10 +115,29 @@ function updateBucket(value: string) {
 
 <style scoped>
 .panel-shell {
-  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
+.panel-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.panel-title {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.panel-description {
+  margin: 0;
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.status-alert,
 .health-tags {
-  margin-top: 12px;
+  margin-top: 2px;
 }
 </style>

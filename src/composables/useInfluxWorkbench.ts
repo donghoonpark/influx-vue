@@ -197,13 +197,17 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       panels: dashboardPanels.value,
     }),
   )
+  const hasExplorerSelection = computed(
+    () =>
+      Boolean(selectedBucket.value) &&
+      Boolean(selectedMeasurement.value) &&
+      selectedFields.value.length > 0,
+  )
 
   const canRunQuery = computed(
     () =>
       Boolean(dataSource.value) &&
-      Boolean(selectedBucket.value) &&
-      Boolean(selectedMeasurement.value) &&
-      selectedFields.value.length > 0 &&
+      hasExplorerSelection.value &&
       Boolean(currentFlux.value),
   )
 
@@ -515,17 +519,28 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     tagFilters.value = nextFilters
   }
 
-  function syncRawFluxFromBuilder() {
-    if (!rawFlux.value.trim()) {
+  function syncQueryFromExplorer(force = true) {
+    if (!generatedFlux.value) {
+      return
+    }
+
+    if (force || !rawFlux.value.trim()) {
       rawFlux.value = generatedFlux.value
     }
+
+    queryMode.value = 'builder'
+  }
+
+  function updateQueryText(value: string) {
+    rawFlux.value = value
+    queryMode.value = value.trim() ? 'raw' : 'builder'
   }
 
   function setQueryMode(mode: QueryMode) {
     queryMode.value = mode
 
-    if (mode === 'raw') {
-      syncRawFluxFromBuilder()
+    if (mode === 'raw' && !rawFlux.value.trim()) {
+      rawFlux.value = generatedFlux.value
     }
   }
 
@@ -564,25 +579,16 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     }
   }
 
-  function addCurrentSelectionToDashboard(input: {
+  function createCurrentPanelSnapshot(input: {
     title?: string
     description?: string
     visualization?: InfluxPanelVisualization
   }) {
-    if (
-      !selectedBucket.value ||
-      !selectedMeasurement.value ||
-      selectedFields.value.length === 0
-    ) {
-      status.value = createStatusMessage(
-        'warning',
-        'Panel is incomplete',
-        'Pick a bucket, measurement, and at least one field before saving a panel.',
-      )
+    if (!hasExplorerSelection.value) {
       return null
     }
 
-    const panel = createDashboardPanel({
+    return createDashboardPanel({
       title: input.title,
       description: input.description,
       visualization: input.visualization,
@@ -590,6 +596,22 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       query: buildCurrentQueryState(),
       rawFlux: rawFlux.value,
     })
+  }
+
+  function addCurrentSelectionToDashboard(input: {
+    title?: string
+    description?: string
+    visualization?: InfluxPanelVisualization
+  }) {
+    const panel = createCurrentPanelSnapshot(input)
+    if (!panel) {
+      status.value = createStatusMessage(
+        'warning',
+        'Panel is incomplete',
+        'Pick a bucket, measurement, and at least one field before saving a panel.',
+      )
+      return null
+    }
 
     dashboardPanels.value = [...dashboardPanels.value, panel]
 
@@ -850,6 +872,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     generatedFlux,
     currentFlux,
     hasConnection,
+    hasExplorerSelection,
     canRunQuery,
     isConnecting,
     isSchemaLoading,
@@ -863,11 +886,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     updateTagFilterKey,
     updateTagFilterValues,
     removeTagFilter,
+    syncQueryFromExplorer,
+    updateQueryText,
     setQueryMode,
     runQuery,
     isDashboardPanelRunning,
     updateDashboardMeta,
     addCurrentSelectionToDashboard,
+    createCurrentPanelSnapshot,
     removeDashboardPanel,
     importDashboardYaml,
     runDashboardPanel,

@@ -81,6 +81,27 @@ describe('useInfluxWorkbench', () => {
     )
   })
 
+  it('syncs explorer state into the query text without syncing raw edits back', async () => {
+    const dataSource = createMockDataSource()
+    const workbench = useInfluxWorkbench({
+      createDataSource: () => dataSource,
+    })
+
+    await workbench.connect()
+    workbench.syncQueryFromExplorer()
+
+    expect(workbench.rawFlux.value).toContain('from(bucket: "demo-metrics")')
+    expect(workbench.queryMode.value).toBe('builder')
+
+    workbench.updateQueryText(
+      'from(bucket: "demo-metrics") |> range(start: -6h)',
+    )
+
+    expect(workbench.queryMode.value).toBe('raw')
+    expect(workbench.rawFlux.value).toContain('range(start: -6h)')
+    expect(workbench.selectedFields.value).toEqual(['usage_user'])
+  })
+
   it('adds tag filters and runs a query against the active explorer selection', async () => {
     const dataSource = createMockDataSource()
     const workbench = useInfluxWorkbench({
