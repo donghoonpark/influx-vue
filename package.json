@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "A Vue 3 + TypeScript workbench for exploring InfluxDB buckets, schema, Flux queries, and visualizations.",
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/donghoonpark/influx-vue.git"
+  },
+  "homepage": "https://github.com/donghoonpark/influx-vue#readme",
+  "bugs": {
+    "url": "https://github.com/donghoonpark/influx-vue/issues"
+  },
   "type": "module",
   "files": [
     "dist"

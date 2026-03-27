@@ -6,7 +6,6 @@ Use this checklist before the first npm publish.
 
 These are the only items still best decided by the maintainer:
 
-- Set the GitHub repository URL in `package.json` once the public repo exists.
 - Decide whether to keep the unscoped name `influx-vue` or publish under a scope such as `@your-scope/influx-vue`.
 
 ## Current package readiness
@@ -17,6 +16,7 @@ These are the only items still best decided by the maintainer:
 - CSS is exported as `influx-vue/style.css`.
 - The package is no longer marked `private`.
 - The project license is `Apache-2.0`.
+- GitHub metadata points at `https://github.com/donghoonpark/influx-vue`.
 
 ## Release steps
 
@@ -28,5 +28,4 @@ These are the only items still best decided by the maintainer:
 ## Recommended follow-up
 
 - Add a GitHub Actions workflow for release checks on tags.
-- Add repository metadata (`repository`, `homepage`, `bugs`) after the public GitHub URL is known.
 - Add a changelog strategy before the first stable release.
