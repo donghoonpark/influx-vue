@@ -1,10 +1,13 @@
 {
   "name": "influx-vue",
-  "private": true,
   "version": "0.1.0",
+  "description": "A Vue 3 + TypeScript workbench for exploring InfluxDB buckets, schema, Flux queries, and visualizations.",
   "type": "module",
   "files": [
     "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
   ],
   "main": "./dist/influx-vue.umd.cjs",
   "module": "./dist/influx-vue.js",
@@ -15,19 +18,36 @@
       "require": "./dist/influx-vue.umd.cjs",
       "types": "./dist/index.d.ts"
     },
-    "./style.css": "./dist/style.css"
+    "./style.css": "./dist/influx-vue.css"
   },
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc -b && vite build",
+    "build": "pnpm build:bundle && pnpm build:types",
+    "build:bundle": "vite build",
+    "build:types": "vue-tsc --project tsconfig.build.json && tsc-alias --project tsconfig.build.json",
     "preview": "vite preview",
+    "release:check": "pnpm build && pnpm test:unit && npm pack --dry-run",
     "test": "pnpm test:unit && pnpm test:integration",
     "test:unit": "vitest run --config vitest.unit.config.ts --coverage",
     "test:integration": "if [ -z \"${DOCKER_HOST:-}\" ] && [ -S \"$HOME/.colima/docker.sock\" ]; then export DOCKER_HOST=\"unix://$HOME/.colima/docker.sock\"; export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=\"${TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE:-/var/run/docker.sock}\"; fi; vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest --config vitest.unit.config.ts",
     "db:up": "docker compose up -d influxdb",
     "db:down": "docker compose down -v",
-    "db:seed": "tsx scripts/seed-influx.mts"
+    "db:seed": "tsx scripts/seed-influx.mts",
+    "prepublishOnly": "pnpm release:check"
+  },
+  "keywords": [
+    "influxdb",
+    "vue",
+    "vue3",
+    "flux",
+    "naive-ui",
+    "echarts",
+    "timeseries",
+    "dashboard"
+  ],
+  "peerDependencies": {
+    "vue": "^3.5.0"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.1",
@@ -43,7 +63,6 @@
     "date-fns": "^4.1.0",
     "echarts": "^6.0.0",
     "naive-ui": "^2.44.1",
-    "vue": "^3.5.31",
     "vue-echarts": "^8.0.1",
     "yaml": "^2.8.3"
   },
@@ -57,10 +76,12 @@
     "happy-dom": "^20.8.8",
     "prettier": "^3.8.1",
     "testcontainers": "^11.13.0",
+    "tsc-alias": "^1.8.16",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
     "vite": "^8.0.1",
     "vitest": "^4.1.1",
+    "vue": "^3.5.31",
     "vue-tsc": "^3.2.5"
   }
 }

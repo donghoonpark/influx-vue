@@ -24,6 +24,7 @@ export default defineConfig({
     },
   },
   build: {
+    copyPublicDir: false,
     lib: {
       entry: fileURLToPath(new URL('./src/index.ts', import.meta.url)),
       name: 'InfluxVue',

@@ -60,6 +60,8 @@ import { InfluxWorkbench } from 'influx-vue'
 import 'influx-vue/style.css'
 ```
 
+`influx-vue` expects Vue 3.5+ in the host app.
+
 ## Basic Usage
 
 Token-based initialization:
@@ -192,6 +194,14 @@ Notes:
 
 - `test:integration` starts a real InfluxDB container with seeded sample data.
 - The integration setup works with Docker and local `colima` environments.
+
+## Publishing
+
+Before the first npm publish, review [PUBLISHING.md](PUBLISHING.md).
+
+```bash
+pnpm release:check
+```
 
 ## Repository Layout
 
