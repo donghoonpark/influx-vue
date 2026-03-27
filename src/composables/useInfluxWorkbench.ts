@@ -22,6 +22,7 @@ import {
 } from '@/services/influx/dashboard'
 import { summarizeRows } from '@/services/influx/resultTransforms'
 import { createBrowserInfluxDataSource } from '@/services/influx/browserDataSource'
+import type { FluxAutocompleteSchema } from '@/services/influx/fluxAutocomplete'
 import type {
   AggregateFunction,
   InfluxBucket,
@@ -110,6 +111,12 @@ function snapshotConnection(
   }
 }
 
+interface CachedMeasurementSchema {
+  fields: string[]
+  tagKeys: string[]
+  tagValuesByKey: Record<string, string[]>
+}
+
 export interface UseInfluxWorkbenchOptions {
   createDataSource?: (
     config: InfluxConnectionConfig,
@@ -142,6 +149,10 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const fieldKeys = ref<string[]>([])
   const tagKeys = ref<string[]>([])
   const tagValueOptions = ref<Record<string, string[]>>({})
+  const bucketMeasurementsCache = ref<Record<string, string[]>>({})
+  const measurementSchemaCache = ref<
+    Record<string, Record<string, CachedMeasurementSchema>>
+  >({})
 
   const selectedBucket = ref(connection.bucket ?? '')
   const selectedMeasurement = ref('')
@@ -249,6 +260,69 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     )
   }
 
+  function clearSchemaCache() {
+    bucketMeasurementsCache.value = {}
+    measurementSchemaCache.value = {}
+  }
+
+  function cacheBucketMeasurements(
+    bucketName: string,
+    nextMeasurements: string[],
+  ) {
+    bucketMeasurementsCache.value = {
+      ...bucketMeasurementsCache.value,
+      [bucketName]: [...nextMeasurements],
+    }
+  }
+
+  function readBucketMeasurements(bucketName: string): string[] {
+    return bucketMeasurementsCache.value[bucketName] ?? []
+  }
+
+  function cacheMeasurementSchema(
+    bucketName: string,
+    measurement: string,
+    input: Partial<CachedMeasurementSchema>,
+  ) {
+    const nextBucketSchemas = {
+      ...(measurementSchemaCache.value[bucketName] ?? {}),
+    }
+    const currentSchema = nextBucketSchemas[measurement] ?? {
+      fields: [],
+      tagKeys: [],
+      tagValuesByKey: {},
+    }
+
+    nextBucketSchemas[measurement] = {
+      fields: input.fields ? [...input.fields] : currentSchema.fields,
+      tagKeys: input.tagKeys ? [...input.tagKeys] : currentSchema.tagKeys,
+      tagValuesByKey: input.tagValuesByKey
+        ? {
+            ...currentSchema.tagValuesByKey,
+            ...input.tagValuesByKey,
+          }
+        : currentSchema.tagValuesByKey,
+    }
+
+    measurementSchemaCache.value = {
+      ...measurementSchemaCache.value,
+      [bucketName]: nextBucketSchemas,
+    }
+  }
+
+  function readMeasurementSchema(
+    bucketName: string,
+    measurement: string,
+  ): CachedMeasurementSchema {
+    return (
+      measurementSchemaCache.value[bucketName]?.[measurement] ?? {
+        fields: [],
+        tagKeys: [],
+        tagValuesByKey: {},
+      }
+    )
+  }
+
   function clearMeasurementState() {
     measurements.value = []
     fieldKeys.value = []
@@ -281,6 +355,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     dataSource.value = null
     health.value = null
     buckets.value = []
+    clearSchemaCache()
     clearMeasurementState()
 
     status.value = createStatusMessage(
@@ -333,26 +408,133 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     return dashboardPanelLoadingIds.value.includes(panelId)
   }
 
-  async function loadTagValues(tagKey: string) {
-    if (
-      !dataSource.value ||
-      !selectedBucket.value ||
-      !selectedMeasurement.value ||
-      !tagKey
-    ) {
-      return
+  async function ensureBucketMeasurements(
+    bucketName: string,
+  ): Promise<string[]> {
+    if (!dataSource.value || !bucketName) {
+      return []
     }
 
-    if (tagValueOptions.value[tagKey]) {
-      return
+    const cachedMeasurements = readBucketMeasurements(bucketName)
+    if (cachedMeasurements.length > 0) {
+      return cachedMeasurements
     }
 
-    const values = await dataSource.value.listTagValues({
-      bucket: selectedBucket.value,
-      measurement: selectedMeasurement.value,
+    const nextMeasurements = await dataSource.value.listMeasurements({
+      bucket: bucketName,
+      start: SCHEMA_LOOKBACK,
+    })
+
+    cacheBucketMeasurements(bucketName, nextMeasurements)
+    return nextMeasurements
+  }
+
+  async function ensureMeasurementSchema(
+    bucketName: string,
+    measurement: string,
+  ): Promise<CachedMeasurementSchema> {
+    if (!dataSource.value || !bucketName || !measurement) {
+      return {
+        fields: [],
+        tagKeys: [],
+        tagValuesByKey: {},
+      }
+    }
+
+    const cachedSchema = readMeasurementSchema(bucketName, measurement)
+    if (cachedSchema.fields.length > 0 || cachedSchema.tagKeys.length > 0) {
+      return cachedSchema
+    }
+
+    const [fields, tags] = await Promise.all([
+      dataSource.value.listFieldKeys({
+        bucket: bucketName,
+        measurement,
+        start: SCHEMA_LOOKBACK,
+      }),
+      dataSource.value.listTagKeys({
+        bucket: bucketName,
+        measurement,
+        start: SCHEMA_LOOKBACK,
+      }),
+    ])
+
+    cacheMeasurementSchema(bucketName, measurement, {
+      fields,
+      tagKeys: tags,
+    })
+
+    return readMeasurementSchema(bucketName, measurement)
+  }
+
+  async function ensureTagValues(
+    bucketName: string,
+    measurement: string,
+    tagKey: string,
+  ): Promise<string[]> {
+    if (!dataSource.value || !bucketName || !measurement || !tagKey) {
+      return []
+    }
+
+    const cachedValues = readMeasurementSchema(bucketName, measurement)
+      .tagValuesByKey[tagKey]
+    if (cachedValues) {
+      return cachedValues
+    }
+
+    const nextValues = await dataSource.value.listTagValues({
+      bucket: bucketName,
+      measurement,
       tagKey,
       start: SCHEMA_LOOKBACK,
     })
+
+    cacheMeasurementSchema(bucketName, measurement, {
+      tagValuesByKey: {
+        [tagKey]: nextValues,
+      },
+    })
+
+    return nextValues
+  }
+
+  function syncMeasurementStateFromCache(
+    bucketName: string,
+    measurement: string,
+    options: {
+      preserveSelectedFields?: boolean
+      preserveTagFilters?: boolean
+    } = {},
+  ) {
+    const cachedSchema = readMeasurementSchema(bucketName, measurement)
+
+    fieldKeys.value = [...cachedSchema.fields]
+    selectedFields.value = options.preserveSelectedFields
+      ? intersectSelections(selectedFields.value, cachedSchema.fields)
+      : [...cachedSchema.fields]
+    if (selectedFields.value.length === 0 && cachedSchema.fields.length > 0) {
+      selectedFields.value = [cachedSchema.fields[0]]
+    }
+
+    tagKeys.value = [...cachedSchema.tagKeys]
+    tagFilters.value = options.preserveTagFilters
+      ? tagFilters.value.filter((filter) =>
+          cachedSchema.tagKeys.includes(filter.tagKey),
+        )
+      : []
+    tagValueOptions.value = { ...cachedSchema.tagValuesByKey }
+  }
+
+  async function loadTagValues(tagKey: string) {
+    if (!selectedBucket.value || !selectedMeasurement.value || !tagKey) {
+      return
+    }
+
+    const values = await ensureTagValues(
+      selectedBucket.value,
+      selectedMeasurement.value,
+      tagKey,
+    )
 
     tagValueOptions.value = {
       ...tagValueOptions.value,
@@ -361,7 +543,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   }
 
   async function hydrateMeasurement(measurement: string) {
-    if (!dataSource.value || !selectedBucket.value || !measurement) {
+    if (!selectedBucket.value || !measurement) {
       return
     }
 
@@ -369,34 +551,11 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     clearResults()
 
     try {
-      const [fields, tags] = await Promise.all([
-        dataSource.value.listFieldKeys({
-          bucket: selectedBucket.value,
-          measurement,
-          start: SCHEMA_LOOKBACK,
-        }),
-        dataSource.value.listTagKeys({
-          bucket: selectedBucket.value,
-          measurement,
-          start: SCHEMA_LOOKBACK,
-        }),
-      ])
-
-      fieldKeys.value = fields
-      selectedFields.value = intersectSelections(selectedFields.value, fields)
-      if (selectedFields.value.length === 0 && fields.length > 0) {
-        selectedFields.value = [fields[0]]
-      }
-
-      tagKeys.value = tags
-      tagFilters.value = tagFilters.value.filter((filter) =>
-        tags.includes(filter.tagKey),
-      )
-      tagValueOptions.value = Object.fromEntries(
-        Object.entries(tagValueOptions.value).filter(([key]) =>
-          tags.includes(key),
-        ),
-      )
+      await ensureMeasurementSchema(selectedBucket.value, measurement)
+      syncMeasurementStateFromCache(selectedBucket.value, measurement, {
+        preserveSelectedFields: true,
+        preserveTagFilters: true,
+      })
 
       if (!rawFlux.value.trim()) {
         rawFlux.value = generatedFlux.value
@@ -422,10 +581,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     clearResults()
 
     try {
-      const bucketMeasurements = await dataSource.value.listMeasurements({
-        bucket: bucketName,
-        start: SCHEMA_LOOKBACK,
-      })
+      const bucketMeasurements = await ensureBucketMeasurements(bucketName)
 
       measurements.value = bucketMeasurements
       const nextMeasurement = bucketMeasurements[0] ?? ''
@@ -489,6 +645,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       dataSource.value = nextDataSource
       health.value = nextHealth
       buckets.value = nextBuckets
+      clearSchemaCache()
 
       if (nextBuckets.length === 0) {
         selectedBucket.value = ''
@@ -537,6 +694,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     dataSource.value = null
     health.value = null
     lastConnectionFailure.value = null
+    clearSchemaCache()
     status.value = createStatusMessage(
       'info',
       'Disconnected',
@@ -666,6 +824,72 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       return false
     } finally {
       isQueryRunning.value = false
+    }
+  }
+
+  async function resolveFluxAutocompleteSchema(input: {
+    bucket?: string
+    measurement?: string
+    tagKey?: string
+  }): Promise<FluxAutocompleteSchema> {
+    const bucketName = input.bucket?.trim() || selectedBucket.value
+    const measurementName =
+      input.measurement?.trim() || selectedMeasurement.value
+    const bucketNames = buckets.value.map((bucket) => bucket.name)
+
+    let nextMeasurements =
+      bucketName === selectedBucket.value
+        ? [...measurements.value]
+        : readBucketMeasurements(bucketName)
+
+    if (dataSource.value && bucketName && nextMeasurements.length === 0) {
+      nextMeasurements = await ensureBucketMeasurements(bucketName)
+    }
+
+    let nextFields =
+      bucketName === selectedBucket.value &&
+      measurementName === selectedMeasurement.value
+        ? [...fieldKeys.value]
+        : []
+    let nextTagKeys =
+      bucketName === selectedBucket.value &&
+      measurementName === selectedMeasurement.value
+        ? [...tagKeys.value]
+        : []
+    let nextTagValuesByKey =
+      bucketName === selectedBucket.value &&
+      measurementName === selectedMeasurement.value
+        ? { ...tagValueOptions.value }
+        : {}
+
+    if (dataSource.value && bucketName && measurementName) {
+      const cachedSchema = await ensureMeasurementSchema(
+        bucketName,
+        measurementName,
+      )
+      nextFields = [...cachedSchema.fields]
+      nextTagKeys = [...cachedSchema.tagKeys]
+      nextTagValuesByKey = { ...cachedSchema.tagValuesByKey }
+
+      if (input.tagKey && !nextTagValuesByKey[input.tagKey]) {
+        nextTagValuesByKey = {
+          ...nextTagValuesByKey,
+          [input.tagKey]: await ensureTagValues(
+            bucketName,
+            measurementName,
+            input.tagKey,
+          ),
+        }
+      }
+    }
+
+    return {
+      buckets: bucketNames,
+      measurements: nextMeasurements,
+      fields: nextFields,
+      tagKeys: nextTagKeys,
+      tagValuesByKey: nextTagValuesByKey,
+      aggregateFunctions: AGGREGATE_FUNCTIONS,
     }
   }
 
@@ -982,6 +1206,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     updateQueryText,
     setQueryMode,
     runQuery,
+    resolveFluxAutocompleteSchema,
     isDashboardPanelRunning,
     updateDashboardMeta,
     addCurrentSelectionToDashboard,

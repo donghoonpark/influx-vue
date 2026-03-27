@@ -17,7 +17,7 @@ export interface FluxAutocompleteSchema {
   aggregateFunctions: AggregateFunction[]
 }
 
-type FluxCompletionKind =
+export type FluxCompletionKind =
   | 'bucket'
   | 'measurement'
   | 'field'
@@ -26,12 +26,29 @@ type FluxCompletionKind =
   | 'aggregateFunction'
   | 'global'
 
-interface FluxCompletionMatch {
+export interface FluxCompletionMatch {
   from: number
   kind: FluxCompletionKind
   tagKey?: string
   quoteWrapped?: boolean
 }
+
+export interface FluxCompletionReferences {
+  bucket?: string
+  measurement?: string
+  tagKey?: string
+}
+
+export interface FluxAutocompleteRequest {
+  document: string
+  position: number
+  match: FluxCompletionMatch
+  references: FluxCompletionReferences
+}
+
+export type FluxAutocompleteSchemaProvider = (
+  request: FluxAutocompleteRequest,
+) => FluxAutocompleteSchema | Promise<FluxAutocompleteSchema>
 
 const GLOBAL_COMPLETIONS: Completion[] = [
   snippetCompletion(
@@ -235,6 +252,48 @@ export function resolveFluxCompletionContext(
   return null
 }
 
+function findLastMatchValue(
+  source: string,
+  pattern: RegExp,
+): string | undefined {
+  let resolved: string | undefined
+
+  for (const match of source.matchAll(pattern)) {
+    const nextValue = match[1]?.trim()
+    if (nextValue) {
+      resolved = nextValue
+    }
+  }
+
+  return resolved
+}
+
+export function resolveFluxCompletionReferences(
+  document: string,
+  position: number,
+  match?: FluxCompletionMatch | null,
+): FluxCompletionReferences {
+  const scopedSource = document.slice(0, position)
+
+  return {
+    bucket:
+      findLastMatchValue(
+        scopedSource,
+        /from\s*\(\s*bucket\s*:\s*"([^"]+)"/gm,
+      ) ??
+      findLastMatchValue(
+        scopedSource,
+        /from\s*\(\s*bucket\s*:\s*([A-Za-z0-9_-]+)/gm,
+      ),
+    measurement: findLastMatchValue(
+      scopedSource,
+      /_measurement\s*==\s*"([^"]+)"/gm,
+    ),
+    tagKey:
+      match?.tagKey ?? findLastMatchValue(scopedSource, /r\["([^"\]]+)"\]/gm),
+  }
+}
+
 export function resolveFluxCompletionResult(
   document: string,
   position: number,
@@ -321,13 +380,32 @@ export function resolveFluxCompletionResult(
 }
 
 export function createFluxCompletionSource(
-  getSchema: () => FluxAutocompleteSchema,
+  getSchema: FluxAutocompleteSchemaProvider,
 ): CompletionSource {
-  return (context: CompletionContext) =>
-    resolveFluxCompletionResult(
-      context.state.doc.toString(),
+  return async (context: CompletionContext) => {
+    const document = context.state.doc.toString()
+    const match = resolveFluxCompletionContext(
+      document,
       context.pos,
-      getSchema(),
       context.explicit,
     )
+
+    if (!match) {
+      return null
+    }
+
+    const schema = await getSchema({
+      document,
+      position: context.pos,
+      match,
+      references: resolveFluxCompletionReferences(document, context.pos, match),
+    })
+
+    return resolveFluxCompletionResult(
+      document,
+      context.pos,
+      schema,
+      context.explicit,
+    )
+  }
 }

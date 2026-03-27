@@ -7,7 +7,7 @@ import {
   LayersOutline,
   StatsChartOutline,
 } from '@vicons/ionicons5'
-import { NAlert, NButton, NCard, NFlex, NPopover, NTag } from 'naive-ui'
+import { NAlert, NButton, NCard, NFlex, NModal, NPopover, NTag } from 'naive-ui'
 
 import { useInfluxWorkbench } from '@/composables/useInfluxWorkbench'
 import ConnectionPanel from '@/components/workbench/ConnectionPanel.vue'
@@ -55,6 +55,7 @@ const showResultPanel = computed(
   () => !props.hiddenSections.includes('results'),
 )
 const floatingStatus = ref<StatusMessage | null>(null)
+const queryErrorDialog = ref<StatusMessage | null>(null)
 const shouldAutoConnect = computed(
   () =>
     props.autoConnect ||
@@ -106,6 +107,12 @@ function disconnectWorkbench() {
   emit('disconnect', { connection })
 }
 
+function handleQueryErrorModal(show: boolean) {
+  if (!show) {
+    queryErrorDialog.value = null
+  }
+}
+
 async function runQueryWorkbench() {
   return workbench.runQuery()
 }
@@ -119,6 +126,15 @@ watch(
     }
 
     floatingStatus.value = { ...workbench.status.value }
+
+    if (
+      workbench.status.value.type === 'error' &&
+      ['Query failed', 'Query validation failed'].includes(
+        workbench.status.value.title,
+      )
+    ) {
+      queryErrorDialog.value = { ...workbench.status.value }
+    }
 
     const timeoutId = window.setTimeout(() => {
       floatingStatus.value = null
@@ -287,6 +303,19 @@ defineExpose<InfluxWorkbenchExposed>({
         {{ floatingStatus.message }}
       </NAlert>
     </transition>
+
+    <NModal
+      :show="Boolean(queryErrorDialog)"
+      preset="card"
+      title="Query error"
+      class="query-error-modal"
+      @update:show="handleQueryErrorModal"
+    >
+      <template v-if="queryErrorDialog">
+        <strong>{{ queryErrorDialog.title }}</strong>
+        <p class="query-error-message">{{ queryErrorDialog.message }}</p>
+      </template>
+    </NModal>
   </div>
 </template>
 
@@ -373,6 +402,16 @@ defineExpose<InfluxWorkbenchExposed>({
 
 .explorer-surface {
   min-height: 680px;
+}
+
+.query-error-modal {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.query-error-message {
+  margin: 10px 0 0;
+  white-space: pre-wrap;
+  color: rgba(51, 65, 85, 0.96);
 }
 
 .connection-overlay {

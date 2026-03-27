@@ -17,7 +17,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { codeEditorTheme } from '@/components/workbench/codeEditorTheme'
 import {
   createFluxCompletionSource,
-  type FluxAutocompleteSchema,
+  type FluxAutocompleteSchemaProvider,
 } from '@/services/influx/fluxAutocomplete'
 import { fluxLanguageSupport } from '@/services/influx/fluxLanguage'
 import type { FluxValidationIssue } from '@/services/influx/fluxValidation'
@@ -25,7 +25,7 @@ import type { FluxValidationIssue } from '@/services/influx/fluxValidation'
 const props = withDefaults(
   defineProps<{
     modelValue: string
-    completionSchema: FluxAutocompleteSchema
+    completionSchemaProvider: FluxAutocompleteSchemaProvider
     validationIssues?: FluxValidationIssue[]
     placeholder?: string
   }>(),
@@ -71,7 +71,7 @@ function applyDiagnostics() {
 
 function createExtensions() {
   const completionSource = createFluxCompletionSource(
-    () => props.completionSchema,
+    props.completionSchemaProvider,
   )
 
   return [

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  resolveFluxCompletionReferences,
   resolveFluxCompletionContext,
   resolveFluxCompletionResult,
 } from '@/services/influx/fluxAutocomplete'
@@ -100,5 +101,20 @@ describe('fluxAutocomplete', () => {
     expect(match?.kind).toBe('bucket')
     expect(result?.from).toBe(query.length - 2)
     expect(result?.options[0]?.apply).toBe('"demo-metrics"')
+  })
+
+  it('extracts bucket and measurement references from the active query', () => {
+    const query = `
+from(bucket: "edge-sensors")
+  |> range(start: -1h)
+  |> filter(fn: (r) => r._measurement == "temperature")
+  |> filter(fn: (r) => r["sensor"] == "sensor-a")
+`
+
+    expect(resolveFluxCompletionReferences(query, query.length)).toEqual({
+      bucket: 'edge-sensors',
+      measurement: 'temperature',
+      tagKey: 'sensor',
+    })
   })
 })

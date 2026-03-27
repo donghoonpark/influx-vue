@@ -20,8 +20,7 @@ import {
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import FluxCodeEditor from '@/components/workbench/FluxCodeEditor.vue'
 import ExplorerStagePanel from '@/components/workbench/ExplorerStagePanel.vue'
-import { AGGREGATE_FUNCTIONS } from '@/services/influx/flux'
-import type { FluxAutocompleteSchema } from '@/services/influx/fluxAutocomplete'
+import type { FluxAutocompleteRequest } from '@/services/influx/fluxAutocomplete'
 import { validateFluxQuery } from '@/services/influx/fluxValidation'
 import type {
   AggregateFunction,
@@ -60,15 +59,6 @@ const aggregateWindowOptions = [
 ].map((value) => ({
   label: value,
   value,
-}))
-
-const completionSchema = computed<FluxAutocompleteSchema>(() => ({
-  buckets: props.workbench.buckets.value.map((bucket) => bucket.name),
-  measurements: [...props.workbench.measurements.value],
-  fields: [...props.workbench.fieldKeys.value],
-  tagKeys: [...props.workbench.tagKeys.value],
-  tagValuesByKey: { ...props.workbench.tagValueOptions.value },
-  aggregateFunctions: AGGREGATE_FUNCTIONS,
 }))
 
 const queryText = computed(() =>
@@ -198,6 +188,14 @@ function updateQuerySwitch(value: boolean) {
 
 function updateQueryText(value: string) {
   props.workbench.updateQueryText(value)
+}
+
+function loadCompletionSchema(request: FluxAutocompleteRequest) {
+  return props.workbench.resolveFluxAutocompleteSchema({
+    bucket: request.references.bucket,
+    measurement: request.references.measurement,
+    tagKey: request.references.tagKey,
+  })
 }
 </script>
 
@@ -455,7 +453,7 @@ function updateQueryText(value: string) {
           </div>
           <FluxCodeEditor
             :model-value="queryText"
-            :completion-schema="completionSchema"
+            :completion-schema-provider="loadCompletionSchema"
             :validation-issues="queryValidationIssues"
             placeholder="Switch back to explorer to define a query."
             @update:model-value="updateQueryText"

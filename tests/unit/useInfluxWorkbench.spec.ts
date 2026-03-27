@@ -70,6 +70,57 @@ function createPingFailureDataSource() {
   return dataSource
 }
 
+function createMultiBucketDataSource() {
+  const dataSource: InfluxExplorerDataSource = {
+    ping: vi.fn<() => Promise<InfluxPingResult>>().mockResolvedValue({
+      status: 'pass',
+      name: 'influxdb',
+      version: '2.7.0',
+    }),
+    listBuckets: vi.fn().mockResolvedValue([
+      {
+        id: 'bucket-1',
+        name: 'demo-metrics',
+        retentionSeconds: null,
+      },
+      {
+        id: 'bucket-2',
+        name: 'edge-sensors',
+        retentionSeconds: null,
+      },
+    ]),
+    listMeasurements: vi.fn((request) =>
+      Promise.resolve(
+        request.bucket === 'edge-sensors'
+          ? ['temperature']
+          : ['system', 'memory'],
+      ),
+    ),
+    listFieldKeys: vi.fn((request) =>
+      Promise.resolve(
+        request.measurement === 'temperature'
+          ? ['celsius']
+          : ['usage_user', 'usage_system'],
+      ),
+    ),
+    listTagKeys: vi.fn((request) =>
+      Promise.resolve(
+        request.measurement === 'temperature' ? ['sensor'] : ['host', 'region'],
+      ),
+    ),
+    listTagValues: vi.fn((request) =>
+      Promise.resolve(
+        request.tagKey === 'sensor'
+          ? ['sensor-a', 'sensor-b']
+          : ['alpha', 'beta'],
+      ),
+    ),
+    queryRows: vi.fn<() => Promise<InfluxRow[]>>().mockResolvedValue([]),
+  }
+
+  return dataSource
+}
+
 describe('useInfluxWorkbench', () => {
   beforeEach(() => {
     if (
@@ -243,5 +294,25 @@ panels:
       'Token rejected',
     )
     expect(workbench.status.value.type).toBe('error')
+  })
+
+  it('loads autocomplete schema from the referenced bucket context', async () => {
+    const dataSource = createMultiBucketDataSource()
+    const workbench = useInfluxWorkbench({
+      createDataSource: () => dataSource,
+    })
+
+    await workbench.connect()
+
+    const schema = await workbench.resolveFluxAutocompleteSchema({
+      bucket: 'edge-sensors',
+      measurement: 'temperature',
+      tagKey: 'sensor',
+    })
+
+    expect(schema.measurements).toEqual(['temperature'])
+    expect(schema.fields).toEqual(['celsius'])
+    expect(schema.tagKeys).toEqual(['sensor'])
+    expect(schema.tagValuesByKey.sensor).toEqual(['sensor-a', 'sensor-b'])
   })
 })
