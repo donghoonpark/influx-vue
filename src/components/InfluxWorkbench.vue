@@ -42,6 +42,7 @@ const emit = defineEmits<{
 
 const workbench = useInfluxWorkbench({
   createDataSource: props.createDataSource,
+  authenticateConnection: props.authenticateConnection,
 })
 
 const showHero = computed(() => !props.hiddenSections.includes('hero'))

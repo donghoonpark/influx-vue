@@ -15,6 +15,10 @@ export type InfluxWorkbenchCreateDataSource = (
   config: InfluxConnectionConfig,
 ) => InfluxExplorerDataSource
 
+export type InfluxWorkbenchAuthenticateConnection = (
+  config: InfluxConnectionConfig,
+) => Promise<InfluxConnectionConfig>
+
 export interface InfluxWorkbenchProps {
   title?: string
   subtitle?: string
@@ -23,6 +27,7 @@ export interface InfluxWorkbenchProps {
   initialConnection?: Partial<InfluxConnectionConfig>
   hiddenSections?: InfluxWorkbenchSectionKey[]
   createDataSource?: InfluxWorkbenchCreateDataSource
+  authenticateConnection?: InfluxWorkbenchAuthenticateConnection
 }
 
 export interface InfluxWorkbenchConnectEvent {

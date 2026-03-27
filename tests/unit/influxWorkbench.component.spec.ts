@@ -143,4 +143,44 @@ describe('InfluxWorkbench component API', () => {
       (wrapper.emitted('connect-error')?.[0]?.[0] as { phase: string }).phase,
     ).toBe('ping')
   })
+
+  it('accepts username/password initialization through initialConnection', async () => {
+    const dataSource = createSuccessfulDataSource()
+    const authenticateConnection = vi.fn(async (config) => ({
+      ...config,
+      token: 'issued-token',
+      authMethod: 'password' as const,
+    }))
+    const wrapper = shallowMount(InfluxWorkbench, {
+      props: {
+        autoConnect: true,
+        initialConnection: {
+          url: 'http://127.0.0.1:4173',
+          org: 'influx-vue',
+          bucket: 'demo-metrics',
+          authMethod: 'password',
+          username: 'influx',
+          password: 'influx-password-123',
+        },
+        authenticateConnection,
+        createDataSource: () => dataSource,
+      },
+    })
+
+    await flushPromises()
+
+    expect(authenticateConnection).toHaveBeenCalledTimes(1)
+    expect(wrapper.emitted('connect')).toHaveLength(1)
+    expect(
+      (
+        wrapper.emitted('connect')?.[0]?.[0] as {
+          connection: { authMethod?: string; username?: string; token?: string }
+        }
+      ).connection,
+    ).toMatchObject({
+      authMethod: 'password',
+      username: 'influx',
+      token: '',
+    })
+  })
 })

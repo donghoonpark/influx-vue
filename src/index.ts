@@ -18,6 +18,7 @@ export type {
 export type {
   InfluxWorkbenchConnectError,
   InfluxWorkbenchConnectEvent,
+  InfluxWorkbenchAuthenticateConnection,
   InfluxWorkbenchCreateDataSource,
   InfluxWorkbenchDisconnectEvent,
   InfluxWorkbenchExposed,

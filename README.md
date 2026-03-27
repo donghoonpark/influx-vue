@@ -17,10 +17,12 @@ pnpm dev
 
 Open the Vite app URL shown in the terminal, then connect with the seeded demo config:
 
-- `URL`: `http://127.0.0.1:8086`
+- `URL`: the same origin as the app, for example `http://127.0.0.1:5173` in dev or `http://127.0.0.1:4173` in preview
 - `Org`: `influx-vue`
 - `Bucket`: `demo-metrics`
 - `Token`: `influx-vue-admin-token`
+- `Username`: `influx`
+- `Password`: `influx-password-123`
 
 The local sample page starts with:
 
@@ -62,19 +64,21 @@ import 'influx-vue/style.css'
 
 ## Basic Usage
 
+Token-based initialization:
+
 ```vue
 <script setup lang="ts">
 import { InfluxWorkbench } from 'influx-vue'
 
 const initialConnection = {
-  url: 'http://127.0.0.1:8086',
+  url: window.location.origin,
   org: 'influx-vue',
   token: 'influx-vue-admin-token',
   bucket: 'demo-metrics',
 }
 
 function handleConnectError(payload: {
-  phase: 'validation' | 'ping' | 'schema'
+  phase: 'validation' | 'auth' | 'ping' | 'schema'
   error: Error
 }) {
   console.error(payload.phase, payload.error.message)
@@ -90,6 +94,37 @@ function handleConnectError(payload: {
 </template>
 ```
 
+Username/password initialization:
+
+```vue
+<script setup lang="ts">
+import { InfluxWorkbench } from 'influx-vue'
+
+const initialConnection = {
+  url: window.location.origin,
+  org: 'influx-vue',
+  bucket: 'demo-metrics',
+  authMethod: 'password' as const,
+  username: 'influx',
+  password: 'influx-password-123',
+}
+</script>
+
+<template>
+  <InfluxWorkbench
+    :initial-connection="initialConnection"
+    auto-connect
+  />
+</template>
+```
+
+Notes:
+
+- `authMethod: 'token'` uses `token`.
+- `authMethod: 'password'` signs in with `username` and `password`, then issues a token from the active session.
+- Browser password login requires a same-origin InfluxDB proxy path on the app origin.
+- If the signed-in account cannot `write` `authorizations`, the workbench surfaces the token issuance failure through `connect-error`.
+
 ## Public Component API
 
 ### Props
@@ -101,13 +136,14 @@ function handleConnectError(payload: {
 | `autoRunQuery` | `boolean` | Runs the current query after a successful auto-connect. |
 | `hiddenSections` | `InfluxWorkbenchSectionKey[]` | Hides top-level UI sections such as `hero`, `connection`, `explorer`, `results`. |
 | `createDataSource` | `(config) => InfluxExplorerDataSource` | Advanced override for custom transports or proxy-backed integrations. |
+| `authenticateConnection` | `(config) => Promise<InfluxConnectionConfig>` | Optional override for custom sign-in or token issuance flows before the workbench creates its data source. |
 
 ### Events
 
 | Event | Payload | Description |
 | --- | --- | --- |
 | `connect` | `{ connection, health, bucketCount }` | Fired after a successful connection and bucket load. |
-| `connect-error` | `{ error, connection, phase }` | Fired when validation, ping, or schema loading fails. |
+| `connect-error` | `{ error, connection, phase }` | Fired when validation, auth, ping, or schema loading fails. |
 | `disconnect` | `{ connection }` | Fired when the workbench disconnects. |
 
 ### Exposed Methods
