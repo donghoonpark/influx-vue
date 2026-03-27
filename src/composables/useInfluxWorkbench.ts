@@ -21,10 +21,14 @@ import {
   type InfluxPanelVisualization,
 } from '@/services/influx/dashboard'
 import { summarizeRows } from '@/services/influx/resultTransforms'
-import { createBrowserInfluxDataSource } from '@/services/influx/browserDataSource'
+import {
+  authenticateBrowserInfluxConnection,
+  createBrowserInfluxDataSource,
+} from '@/services/influx/browserDataSource'
 import type { FluxAutocompleteSchema } from '@/services/influx/fluxAutocomplete'
 import type {
   AggregateFunction,
+  InfluxAuthMethod,
   InfluxBucket,
   InfluxConnectionConfig,
   InfluxConnectionFailure,
@@ -37,11 +41,15 @@ import type {
   TagFilter,
 } from '@/services/influx/types'
 
+const DEFAULT_AUTH_METHOD: InfluxAuthMethod = 'token'
 const LOCAL_DEMO_CONFIG: InfluxConnectionConfig = {
   url: 'http://127.0.0.1:8086',
   org: 'influx-vue',
   token: 'influx-vue-admin-token',
   bucket: 'demo-metrics',
+  authMethod: DEFAULT_AUTH_METHOD,
+  username: '',
+  password: '',
 }
 
 const STORAGE_KEY = 'influx-vue/workbench/connection'
@@ -71,7 +79,17 @@ function readStoredConnection(): InfluxConnectionConfig | null {
   }
 
   try {
-    return JSON.parse(raw) as InfluxConnectionConfig
+    const parsed = JSON.parse(raw) as Partial<InfluxConnectionConfig>
+
+    return {
+      url: parsed.url ?? '',
+      org: parsed.org ?? '',
+      token: parsed.token ?? '',
+      bucket: parsed.bucket,
+      authMethod: parsed.authMethod ?? DEFAULT_AUTH_METHOD,
+      username: parsed.username ?? '',
+      password: '',
+    }
   } catch {
     return null
   }
@@ -85,7 +103,21 @@ function writeStoredConnection(config: InfluxConnectionConfig) {
     return
   }
 
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+  window.localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      url: config.url,
+      org: config.org,
+      token:
+        (config.authMethod ?? DEFAULT_AUTH_METHOD) === 'token'
+          ? config.token
+          : '',
+      bucket: config.bucket,
+      authMethod: config.authMethod ?? DEFAULT_AUTH_METHOD,
+      username: config.username ?? '',
+      password: '',
+    } satisfies InfluxConnectionConfig),
+  )
 }
 
 function createStatusMessage(
@@ -108,6 +140,21 @@ function snapshotConnection(
     org: connection.org,
     token: connection.token,
     bucket: connection.bucket,
+    authMethod: connection.authMethod ?? DEFAULT_AUTH_METHOD,
+    username: connection.username ?? '',
+    password: connection.password ?? '',
+  }
+}
+
+function sanitizeConnectionSnapshot(
+  connection: InfluxConnectionConfig,
+): InfluxConnectionConfig {
+  const snapshot = snapshotConnection(connection)
+
+  return {
+    ...snapshot,
+    token: snapshot.authMethod === 'password' ? '' : snapshot.token,
+    password: '',
   }
 }
 
@@ -121,16 +168,27 @@ export interface UseInfluxWorkbenchOptions {
   createDataSource?: (
     config: InfluxConnectionConfig,
   ) => InfluxExplorerDataSource
+  authenticateConnection?: (
+    config: InfluxConnectionConfig,
+  ) => Promise<InfluxConnectionConfig>
 }
 
 export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const createDataSource =
     options.createDataSource ?? createBrowserInfluxDataSource
+  const authenticateConnection =
+    options.authenticateConnection ?? authenticateBrowserInfluxConnection
   const storedConnection = readStoredConnection()
 
   const connection = reactive<InfluxConnectionConfig>({
     ...LOCAL_DEMO_CONFIG,
     ...storedConnection,
+    authMethod:
+      storedConnection?.authMethod ??
+      LOCAL_DEMO_CONFIG.authMethod ??
+      DEFAULT_AUTH_METHOD,
+    username: storedConnection?.username ?? '',
+    password: '',
   })
 
   const dataSource = shallowRef<InfluxExplorerDataSource | null>(null)
@@ -348,7 +406,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
     lastConnectionFailure.value = {
       error: normalizedError,
-      connection: failedConnection,
+      connection: sanitizeConnectionSnapshot(failedConnection),
       phase,
     }
 
@@ -599,17 +657,30 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     const requestedConnection = snapshotConnection(connection)
     lastConnectionFailure.value = null
 
-    if (
-      !connection.url.trim() ||
-      !connection.org.trim() ||
-      !connection.token.trim()
-    ) {
+    const authMethod = connection.authMethod ?? DEFAULT_AUTH_METHOD
+    const isPasswordAuth = authMethod === 'password'
+    const hasRequiredCredentials = isPasswordAuth
+      ? Boolean(
+          connection.url.trim() &&
+            connection.org.trim() &&
+            connection.username?.trim() &&
+            connection.password,
+        )
+      : Boolean(
+          connection.url.trim() &&
+            connection.org.trim() &&
+            connection.token.trim(),
+        )
+
+    if (!hasRequiredCredentials) {
       const error = new Error(
-        'Provide the InfluxDB URL, organization, and token before connecting.',
+        isPasswordAuth
+          ? 'Provide the InfluxDB URL, organization, username, and password before connecting.'
+          : 'Provide the InfluxDB URL, organization, and token before connecting.',
       )
       lastConnectionFailure.value = {
         error,
-        connection: requestedConnection,
+        connection: sanitizeConnectionSnapshot(requestedConnection),
         phase: 'validation',
       }
       status.value = createStatusMessage(
@@ -623,7 +694,18 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     isConnecting.value = true
 
     try {
-      const nextDataSource = createDataSource(requestedConnection)
+      let authenticatedConnection: InfluxConnectionConfig
+
+      try {
+        authenticatedConnection = await authenticateConnection(
+          requestedConnection,
+        )
+      } catch (error) {
+        setConnectionFailure('auth', error, requestedConnection)
+        return false
+      }
+
+      const nextDataSource = createDataSource(authenticatedConnection)
       let nextHealth: InfluxPingResult
 
       try {
@@ -662,6 +744,9 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         nextBuckets.find((bucket) => bucket.name === connection.bucket)?.name ??
         nextBuckets[0].name
 
+      connection.authMethod = authenticatedConnection.authMethod
+      connection.token = authenticatedConnection.token
+      connection.username = authenticatedConnection.username ?? ''
       selectedBucket.value = nextBucket
       connection.bucket = nextBucket
       try {
@@ -698,7 +783,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     status.value = createStatusMessage(
       'info',
       'Disconnected',
-      'Disconnected from InfluxDB. Current explorer state remains visible.',
+      'Disconnected from InfluxDB. Current explorer state remains visible until you reconnect.',
     )
   }
 

@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { DocumentTextOutline } from '@vicons/ionicons5'
-import { NButton, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
+import { NAlert, NButton, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
@@ -44,6 +44,40 @@ const serializedYaml = computed(() =>
 )
 
 const isYamlDirty = computed(() => yamlDraft.value !== serializedYaml.value)
+const resultNotice = computed(() => {
+  if (!props.workbench.hasExecutedQuery.value) {
+    return null
+  }
+
+  if (props.workbench.rows.value.length === 0) {
+    return {
+      type: 'warning' as const,
+      title: 'No data returned',
+      message:
+        'The query completed successfully, but no rows matched the current bucket, range, or filters.',
+    }
+  }
+
+  if (props.workbench.rows.value.length === 1) {
+    return {
+      type: 'info' as const,
+      title: 'Single row returned',
+      message:
+        'Only one row matched the current query, so the chart may look sparse until you widen the range or reduce aggregation.',
+    }
+  }
+
+  if (props.workbench.summary.value.numericRowCount === 0) {
+    return {
+      type: 'warning' as const,
+      title: 'No numeric series to chart',
+      message:
+        'Rows were returned, but the chart needs numeric _value fields. The table tab still contains the raw result.',
+    }
+  }
+
+  return null
+})
 
 watch(
   serializedYaml,
@@ -62,6 +96,16 @@ function syncYamlFromState() {
 
 <template>
   <div class="panel-shell">
+    <NAlert
+      v-if="resultNotice"
+      :type="resultNotice.type"
+      :title="resultNotice.title"
+      :bordered="false"
+      class="result-notice"
+    >
+      {{ resultNotice.message }}
+    </NAlert>
+
     <NTabs v-model:value="resultTab" type="line" animated>
       <NTabPane name="chart" tab="Chart">
         <InfluxResultChart :rows="workbench.rows.value" />
@@ -103,6 +147,10 @@ function syncYamlFromState() {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+.result-notice {
+  margin-top: 2px;
 }
 
 .yaml-shell {

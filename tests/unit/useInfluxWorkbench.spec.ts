@@ -206,6 +206,56 @@ describe('useInfluxWorkbench', () => {
     expect(workbench.status.value.title).toBe('Query validation failed')
   })
 
+  it('authenticates username/password connections before building the data source', async () => {
+    const dataSource = createMockDataSource()
+    const authenticateConnection = vi.fn(async (config) => ({
+      ...config,
+      authMethod: 'password' as const,
+      token: '',
+    }))
+    const workbench = useInfluxWorkbench({
+      authenticateConnection,
+      createDataSource: () => dataSource,
+    })
+
+    workbench.connection.authMethod = 'password'
+    workbench.connection.url = '/influx'
+    workbench.connection.org = 'influx-vue'
+    workbench.connection.username = 'influx'
+    workbench.connection.password = 'influx-password-123'
+    workbench.connection.token = ''
+
+    const connected = await workbench.connect()
+
+    expect(connected).toBe(true)
+    expect(authenticateConnection).toHaveBeenCalledTimes(1)
+    expect(workbench.connection.authMethod).toBe('password')
+    expect(workbench.connection.username).toBe('influx')
+  })
+
+  it('requires username and password in password auth mode', async () => {
+    const dataSource = createMockDataSource()
+    const authenticateConnection = vi.fn()
+    const workbench = useInfluxWorkbench({
+      authenticateConnection,
+      createDataSource: () => dataSource,
+    })
+
+    workbench.connection.authMethod = 'password'
+    workbench.connection.url = '/influx'
+    workbench.connection.org = 'influx-vue'
+    workbench.connection.username = ''
+    workbench.connection.password = ''
+    workbench.connection.token = ''
+
+    const connected = await workbench.connect()
+
+    expect(connected).toBe(false)
+    expect(authenticateConnection).not.toHaveBeenCalled()
+    expect(workbench.lastConnectionFailure.value?.phase).toBe('validation')
+    expect(workbench.status.value.message).toContain('username')
+  })
+
   it('saves the current query as a dashboard panel and reloads it into the editor', async () => {
     const dataSource = createMockDataSource()
     const workbench = useInfluxWorkbench({

@@ -9,6 +9,7 @@ import {
   NGi,
   NGrid,
   NInput,
+  NSelect,
   NTag,
 } from 'naive-ui'
 
@@ -22,6 +23,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   connect: []
 }>()
+
+const authMethodOptions = [
+  { label: 'API token', value: 'token' },
+  { label: 'Username / password', value: 'password' },
+]
 
 function updateBucket(value: string) {
   props.workbench.connection.bucket = value
@@ -41,6 +47,15 @@ function updateBucket(value: string) {
 
     <NForm label-placement="top">
       <NGrid :cols="2" :x-gap="12">
+        <NGi :span="2">
+          <NFormItem label="Authentication">
+            <NSelect
+              v-model:value="workbench.connection.authMethod"
+              :options="authMethodOptions"
+            />
+          </NFormItem>
+        </NGi>
+
         <NGi :span="2">
           <NFormItem label="InfluxDB URL">
             <NInput
@@ -69,7 +84,7 @@ function updateBucket(value: string) {
           </NFormItem>
         </NGi>
 
-        <NGi :span="2">
+        <NGi v-if="workbench.connection.authMethod !== 'password'" :span="2">
           <NFormItem label="Token">
             <NInput
               v-model:value="workbench.connection.token"
@@ -79,7 +94,37 @@ function updateBucket(value: string) {
             />
           </NFormItem>
         </NGi>
+
+        <NGi v-else>
+          <NFormItem label="Username / ID">
+            <NInput
+              v-model:value="workbench.connection.username"
+              placeholder="influx"
+            />
+          </NFormItem>
+        </NGi>
+
+        <NGi v-if="workbench.connection.authMethod === 'password'">
+          <NFormItem label="Password">
+            <NInput
+              v-model:value="workbench.connection.password"
+              type="password"
+              show-password-on="click"
+              placeholder="InfluxDB user password"
+            />
+          </NFormItem>
+        </NGi>
       </NGrid>
+
+      <NAlert
+        v-if="workbench.connection.authMethod === 'password'"
+        type="info"
+        :bordered="false"
+        class="auth-hint"
+      >
+        Browser password login works best through a same-origin proxy URL such as
+        <strong>/influx</strong>.
+      </NAlert>
 
       <NFlex :size="12">
         <NButton
@@ -126,5 +171,9 @@ function updateBucket(value: string) {
 .status-alert,
 .health-tags {
   margin-top: 2px;
+}
+
+.auth-hint {
+  margin-bottom: 10px;
 }
 </style>

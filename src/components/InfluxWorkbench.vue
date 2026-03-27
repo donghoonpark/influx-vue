@@ -66,11 +66,16 @@ const showConnectionOverlay = computed(
 )
 
 function currentConnection(): InfluxConnectionConfig {
+  const authMethod = workbench.connection.authMethod
+
   return {
     url: workbench.connection.url,
     org: workbench.connection.org,
-    token: workbench.connection.token,
+    token: authMethod === 'password' ? '' : workbench.connection.token,
     bucket: workbench.connection.bucket,
+    authMethod,
+    username: workbench.connection.username,
+    password: '',
   }
 }
 

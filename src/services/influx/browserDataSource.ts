@@ -2,13 +2,78 @@ import { InfluxDB } from '@influxdata/influxdb-client-browser'
 
 import { createInfluxExplorerDataSource } from '@/services/influx/dataSourceCore'
 import type {
+  InfluxAuthMethod,
   InfluxConnectionConfig,
   InfluxPingResult,
   InfluxRow,
 } from '@/services/influx/types'
 
+const DEFAULT_AUTH_METHOD: InfluxAuthMethod = 'token'
+
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
+}
+
+function resolveAuthMethod(config: InfluxConnectionConfig): InfluxAuthMethod {
+  return config.authMethod ?? DEFAULT_AUTH_METHOD
+}
+
+function usesPasswordAuth(config: InfluxConnectionConfig): boolean {
+  return resolveAuthMethod(config) === 'password'
+}
+
+function encodeBasicCredentials(username: string, password: string): string {
+  if (typeof btoa === 'function') {
+    return btoa(`${username}:${password}`)
+  }
+
+  const bytes = new TextEncoder().encode(`${username}:${password}`)
+  const alphabet =
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  let result = ''
+
+  for (let index = 0; index < bytes.length; index += 3) {
+    const chunk =
+      (bytes[index] << 16) |
+      ((bytes[index + 1] ?? 0) << 8) |
+      (bytes[index + 2] ?? 0)
+
+    result += alphabet[(chunk >> 18) & 63]
+    result += alphabet[(chunk >> 12) & 63]
+    result += index + 1 < bytes.length ? alphabet[(chunk >> 6) & 63] : '='
+    result += index + 2 < bytes.length ? alphabet[chunk & 63] : '='
+  }
+
+  return result
+}
+
+function resolveRequestCredentials(config: InfluxConnectionConfig) {
+  return usesPasswordAuth(config) ? 'include' : 'omit'
+}
+
+function buildAuthHeaders(config: InfluxConnectionConfig): HeadersInit {
+  if (usesPasswordAuth(config)) {
+    return {
+      Accept: 'application/json',
+    }
+  }
+
+  return {
+    Accept: 'application/json',
+    Authorization: `Token ${config.token}`,
+  }
+}
+
+function isSameOriginBrowserUrl(url: string): boolean {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return true
+  }
+
+  try {
+    return new URL(url, window.location.origin).origin === window.location.origin
+  } catch {
+    return false
+  }
 }
 
 async function readErrorMessage(response: Response): Promise<string> {
@@ -27,14 +92,12 @@ async function readErrorMessage(response: Response): Promise<string> {
 
 async function requestJson<T>(
   baseUrl: string,
-  token: string,
+  config: InfluxConnectionConfig,
   path: string,
 ): Promise<T> {
   const response = await fetch(`${baseUrl}${path}`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Token ${token}`,
-    },
+    credentials: resolveRequestCredentials(config),
+    headers: buildAuthHeaders(config),
   })
 
   if (!response.ok) {
@@ -44,12 +107,13 @@ async function requestJson<T>(
   return (await response.json()) as T
 }
 
-async function ping(baseUrl: string, token: string): Promise<InfluxPingResult> {
+async function ping(
+  baseUrl: string,
+  config: InfluxConnectionConfig,
+): Promise<InfluxPingResult> {
   const response = await fetch(`${baseUrl}/api/v2/buckets?limit=1`, {
-    headers: {
-      Accept: 'application/json',
-      Authorization: `Token ${token}`,
-    },
+    credentials: resolveRequestCredentials(config),
+    headers: buildAuthHeaders(config),
   })
 
   if (!response.ok) {
@@ -66,16 +130,61 @@ async function ping(baseUrl: string, token: string): Promise<InfluxPingResult> {
   }
 }
 
+export async function authenticateBrowserInfluxConnection(
+  config: InfluxConnectionConfig,
+): Promise<InfluxConnectionConfig> {
+  if (!usesPasswordAuth(config)) {
+    return {
+      ...config,
+      authMethod: resolveAuthMethod(config),
+    }
+  }
+
+  if (!isSameOriginBrowserUrl(config.url)) {
+    throw new Error(
+      'Username/password login in the browser requires a same-origin URL or reverse proxy such as /influx.',
+    )
+  }
+
+  const username = config.username?.trim() ?? ''
+  const password = config.password ?? ''
+  const baseUrl = normalizeBaseUrl(config.url)
+  const response = await fetch(`${baseUrl}/api/v2/signin`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Basic ${encodeBasicCredentials(username, password)}`,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response))
+  }
+
+  return {
+    ...config,
+    authMethod: 'password',
+    token: '',
+  }
+}
+
 export function createBrowserInfluxDataSource(config: InfluxConnectionConfig) {
   const baseUrl = normalizeBaseUrl(config.url)
-  const influxDB = new InfluxDB({ url: baseUrl, token: config.token })
+  const influxDB = new InfluxDB({
+    url: baseUrl,
+    token: usesPasswordAuth(config) ? undefined : config.token,
+    transportOptions: usesPasswordAuth(config)
+      ? { credentials: 'include' }
+      : undefined,
+  })
   const queryApi = influxDB.getQueryApi(config.org)
 
   return createInfluxExplorerDataSource({
     org: config.org,
-    ping: () => ping(baseUrl, config.token),
+    ping: () => ping(baseUrl, config),
     requestJson: <T>(path: string) =>
-      requestJson<T>(baseUrl, config.token, path),
+      requestJson<T>(baseUrl, config, path),
     collectRows: (flux: string) => queryApi.collectRows<InfluxRow>(flux),
   })
 }

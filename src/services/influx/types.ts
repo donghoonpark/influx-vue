@@ -1,13 +1,18 @@
 export type InfluxScalar = string | number | boolean | null
 
+export type InfluxAuthMethod = 'token' | 'password'
+
 export interface InfluxConnectionConfig {
   url: string
   org: string
   token: string
   bucket?: string
+  authMethod?: InfluxAuthMethod
+  username?: string
+  password?: string
 }
 
-export type InfluxConnectPhase = 'validation' | 'ping' | 'schema'
+export type InfluxConnectPhase = 'validation' | 'auth' | 'ping' | 'schema'
 
 export interface InfluxConnectionFailure {
   error: Error
