@@ -22,6 +22,7 @@ import FluxCodeEditor from '@/components/workbench/FluxCodeEditor.vue'
 import ExplorerStagePanel from '@/components/workbench/ExplorerStagePanel.vue'
 import { AGGREGATE_FUNCTIONS } from '@/services/influx/flux'
 import type { FluxAutocompleteSchema } from '@/services/influx/fluxAutocomplete'
+import { validateFluxQuery } from '@/services/influx/fluxValidation'
 import type {
   AggregateFunction,
   InfluxBucket,
@@ -75,6 +76,7 @@ const queryText = computed(() =>
     ? props.workbench.rawFlux.value
     : props.workbench.generatedFlux.value,
 )
+const queryValidationIssues = computed(() => validateFluxQuery(queryText.value))
 
 const customRangeValue = computed<[number, number] | null>(() => {
   if (
@@ -454,6 +456,7 @@ function updateQueryText(value: string) {
           <FluxCodeEditor
             :model-value="queryText"
             :completion-schema="completionSchema"
+            :validation-issues="queryValidationIssues"
             placeholder="Switch back to explorer to define a query."
             @update:model-value="updateQueryText"
           />
@@ -487,23 +490,29 @@ function updateQueryText(value: string) {
 
 .settings-row {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 10px;
   flex-wrap: nowrap;
 }
 
 .setting-item {
   min-width: 0;
-  flex: 1 1 180px;
+  flex: 1 1 0;
   margin-bottom: 0;
 }
 
 .preset-item {
-  flex-basis: 180px;
+  flex: 1 1 0;
 }
 
 .range-item {
-  flex: 1.5 1 360px;
+  flex: 1 1 0;
+}
+
+.setting-item :deep(.n-base-selection),
+.setting-item :deep(.n-date-picker),
+.setting-item :deep(.n-input-number) {
+  width: 100%;
 }
 
 .flow-grid {

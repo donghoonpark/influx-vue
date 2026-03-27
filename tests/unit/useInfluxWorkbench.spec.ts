@@ -137,6 +137,24 @@ describe('useInfluxWorkbench', () => {
     expect(workbench.status.value.type).toBe('success')
   })
 
+  it('blocks query execution when raw flux fails validation', async () => {
+    const dataSource = createMockDataSource()
+    const workbench = useInfluxWorkbench({
+      createDataSource: () => dataSource,
+    })
+
+    await workbench.connect()
+    workbench.updateQueryText(
+      'from(bucket: "demo-metrics) |> range(start: -1h)',
+    )
+
+    const ran = await workbench.runQuery()
+
+    expect(ran).toBe(false)
+    expect(dataSource.queryRows).not.toHaveBeenCalled()
+    expect(workbench.status.value.title).toBe('Query validation failed')
+  })
+
   it('saves the current query as a dashboard panel and reloads it into the editor', async () => {
     const dataSource = createMockDataSource()
     const workbench = useInfluxWorkbench({

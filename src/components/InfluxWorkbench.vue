@@ -239,10 +239,6 @@ defineExpose<InfluxWorkbenchExposed>({
                 <strong>{{ workbench.summary.value.seriesCount }}</strong>
               </div>
               <div class="stat-row">
-                <span>Dashboard panels</span>
-                <strong>{{ workbench.dashboardPanels.value.length }}</strong>
-              </div>
-              <div class="stat-row">
                 <span>Selected fields</span>
                 <strong>{{ workbench.selectedFields.value.length }}</strong>
               </div>
@@ -359,7 +355,7 @@ defineExpose<InfluxWorkbenchExposed>({
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .surface-card {
@@ -368,11 +364,11 @@ defineExpose<InfluxWorkbenchExposed>({
 }
 
 .surface-card :deep(.n-card__content) {
-  padding: 12px 14px;
+  padding: 10px 12px;
 }
 
 .result-surface {
-  min-height: 460px;
+  min-height: 0;
 }
 
 .explorer-surface {

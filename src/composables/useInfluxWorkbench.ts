@@ -7,6 +7,11 @@ import {
   SCHEMA_LOOKBACK,
 } from '@/services/influx/flux'
 import {
+  hasBlockingFluxValidationIssues,
+  summarizeFluxValidationIssues,
+  validateFluxQuery,
+} from '@/services/influx/fluxValidation'
+import {
   buildDashboardPanelFlux,
   createDashboardDefinition,
   createDashboardPanel,
@@ -625,6 +630,16 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         'warning',
         'Query is incomplete',
         'Select a bucket, measurement, and field before running a query.',
+      )
+      return false
+    }
+
+    const validationIssues = validateFluxQuery(currentFlux.value)
+    if (hasBlockingFluxValidationIssues(validationIssues)) {
+      status.value = createStatusMessage(
+        'error',
+        'Query validation failed',
+        summarizeFluxValidationIssues(validationIssues),
       )
       return false
     }

@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 
-import {
-  DocumentTextOutline,
-  RefreshOutline,
-  SaveOutline,
-  GridOutline,
-  OpenOutline,
-} from '@vicons/ionicons5'
-import { NButton, NCard, NEmpty, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
+import { DocumentTextOutline } from '@vicons/ionicons5'
+import { NButton, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
 import InfluxResultTable from '@/components/InfluxResultTable.vue'
+import YamlCodeEditor from '@/components/workbench/YamlCodeEditor.vue'
 import {
   createDashboardDefinition,
   serializeDashboardToYaml,
@@ -23,14 +18,10 @@ const props = defineProps<{
   workbench: InfluxWorkbenchController
 }>()
 
-const resultTab = ref<'chart' | 'table' | 'yaml' | 'dashboard'>('chart')
+const resultTab = ref<'chart' | 'table' | 'yaml'>('chart')
 const yamlDraft = ref('')
 
 const currentYamlDefinition = computed(() => {
-  if (props.workbench.dashboardPanels.value.length > 0) {
-    return props.workbench.dashboardDefinition.value
-  }
-
   const currentPanel = props.workbench.createCurrentPanelSnapshot({
     title: props.workbench.selectedMeasurement.value
       ? `${props.workbench.selectedMeasurement.value} preview`
@@ -39,13 +30,11 @@ const currentYamlDefinition = computed(() => {
   })
 
   return createDashboardDefinition({
-    name: currentPanel
-      ? 'Current workbench state'
-      : 'Influx explorer dashboard',
+    name: currentPanel ? 'Current workbench state' : 'Influx explorer snapshot',
     description: currentPanel
       ? 'Single-panel snapshot generated from the active explorer selection.'
       : '',
-    columns: props.workbench.dashboardColumns.value,
+    columns: 1,
     panels: currentPanel ? [currentPanel] : [],
   })
 })
@@ -55,10 +44,6 @@ const serializedYaml = computed(() =>
 )
 
 const isYamlDirty = computed(() => yamlDraft.value !== serializedYaml.value)
-
-const dashboardGridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${props.workbench.dashboardColumns.value}, minmax(0, 1fr))`,
-}))
 
 watch(
   serializedYaml,
@@ -72,36 +57,6 @@ watch(
 
 function syncYamlFromState() {
   yamlDraft.value = serializedYaml.value
-}
-
-async function applyYamlAsDashboard() {
-  const loaded = props.workbench.importDashboardYaml(yamlDraft.value)
-  if (!loaded) {
-    return
-  }
-
-  resultTab.value = 'dashboard'
-  if (props.workbench.dashboardPanels.value.length > 0) {
-    await props.workbench.runDashboardPanels()
-  }
-}
-
-async function saveCurrentSelection() {
-  const panel = props.workbench.addCurrentSelectionToDashboard({
-    visualization: 'split',
-  })
-  if (!panel) {
-    return
-  }
-
-  resultTab.value = 'dashboard'
-  if (!props.workbench.dashboardPanelRows.value[panel.id]) {
-    await props.workbench.runDashboardPanel(panel.id)
-  }
-}
-
-function dashboardRows(panelId: string) {
-  return props.workbench.dashboardPanelRows.value[panelId] ?? []
 }
 </script>
 
@@ -129,114 +84,13 @@ function dashboardRows(panelId: string) {
               >
                 Load current state
               </NButton>
-              <NButton
-                secondary
-                size="small"
-                :render-icon="renderNaiveIcon(SaveOutline)"
-                @click="saveCurrentSelection()"
-              >
-                Save current panel
-              </NButton>
-              <NButton
-                type="primary"
-                size="small"
-                :render-icon="renderNaiveIcon(GridOutline)"
-                @click="applyYamlAsDashboard()"
-              >
-                Apply as dashboard
-              </NButton>
             </NFlex>
           </div>
 
-          <textarea
+          <YamlCodeEditor
             v-model="yamlDraft"
-            class="code-editor yaml-editor"
-            placeholder="Dashboard YAML will appear here."
+            placeholder="Current selection YAML will appear here."
           />
-        </div>
-      </NTabPane>
-
-      <NTabPane name="dashboard" tab="Dashboard">
-        <div
-          v-if="workbench.dashboardPanels.value.length === 0"
-          class="dashboard-empty"
-        >
-          <NEmpty
-            description="Use the YAML tab or save the current selection to create a dashboard."
-          />
-        </div>
-
-        <div v-else class="dashboard-grid" :style="dashboardGridStyle">
-          <NCard
-            v-for="panel in workbench.dashboardPanels.value"
-            :key="panel.id"
-            class="dashboard-card"
-            :bordered="false"
-          >
-            <div class="dashboard-card-header">
-              <div>
-                <h3 class="dashboard-title">{{ panel.title }}</h3>
-                <p v-if="panel.description" class="dashboard-description">
-                  {{ panel.description }}
-                </p>
-              </div>
-
-              <NFlex :size="8">
-                <NButton
-                  tertiary
-                  size="small"
-                  :render-icon="renderNaiveIcon(OpenOutline)"
-                  @click="workbench.loadDashboardPanel(panel.id)"
-                >
-                  Load
-                </NButton>
-                <NButton
-                  tertiary
-                  size="small"
-                  :loading="workbench.isDashboardPanelRunning(panel.id)"
-                  :render-icon="renderNaiveIcon(RefreshOutline)"
-                  @click="workbench.runDashboardPanel(panel.id)"
-                >
-                  Refresh
-                </NButton>
-                <NButton
-                  tertiary
-                  type="error"
-                  size="small"
-                  @click="workbench.removeDashboardPanel(panel.id)"
-                >
-                  Remove
-                </NButton>
-              </NFlex>
-            </div>
-
-            <NFlex class="dashboard-tags" :size="8">
-              <NTag type="info">{{ panel.query.bucket }}</NTag>
-              <NTag type="success">{{ panel.query.measurement }}</NTag>
-              <NTag type="warning">{{ panel.visualization }}</NTag>
-            </NFlex>
-
-            <NAlert
-              v-if="workbench.dashboardPanelErrors.value[panel.id]"
-              type="error"
-              :bordered="false"
-              title="Panel query failed"
-              class="dashboard-error"
-            >
-              {{ workbench.dashboardPanelErrors.value[panel.id] }}
-            </NAlert>
-
-            <div class="dashboard-visuals">
-              <InfluxResultChart
-                v-if="panel.visualization !== 'table'"
-                :rows="dashboardRows(panel.id)"
-              />
-              <InfluxResultTable
-                v-if="panel.visualization !== 'chart'"
-                :rows="dashboardRows(panel.id)"
-              />
-            </div>
-          </NCard>
         </div>
       </NTabPane>
     </NTabs>
@@ -257,8 +111,7 @@ function dashboardRows(panelId: string) {
   gap: 10px;
 }
 
-.yaml-toolbar,
-.dashboard-card-header {
+.yaml-toolbar {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -269,69 +122,9 @@ function dashboardRows(panelId: string) {
   margin-bottom: 6px;
 }
 
-.code-editor {
-  width: 100%;
-  min-height: 340px;
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  border-radius: 16px;
-  padding: 12px 14px;
-  resize: vertical;
-  background: #0f172a;
-  color: #e2e8f0;
-  font:
-    500 0.94rem/1.6 'SFMono-Regular',
-    'Consolas',
-    'Menlo',
-    monospace;
-}
-
-.code-editor:focus {
-  outline: none;
-}
-
-.dashboard-empty {
-  padding: 10px 0;
-}
-
-.dashboard-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.dashboard-card {
-  border-radius: 18px;
-  min-width: 0;
-}
-
-.dashboard-title {
-  margin: 0;
-  font-size: 1.02rem;
-}
-
-.dashboard-description {
-  margin: 6px 0 0;
-  color: rgba(71, 85, 105, 0.88);
-}
-
-.dashboard-tags,
-.dashboard-error {
-  margin: 10px 0;
-}
-
-.dashboard-visuals {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
 @media (max-width: 1200px) {
-  .yaml-toolbar,
-  .dashboard-card-header {
+  .yaml-toolbar {
     flex-direction: column;
-  }
-
-  .dashboard-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>

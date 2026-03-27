@@ -1,37 +1,19 @@
 <script setup lang="ts">
-import {
-  autocompletion,
-  closeBrackets,
-  closeBracketsKeymap,
-} from '@codemirror/autocomplete'
-import { setDiagnostics, type Diagnostic } from '@codemirror/lint'
 import { EditorState } from '@codemirror/state'
-import {
-  EditorView,
-  keymap,
-  placeholder as cmPlaceholder,
-} from '@codemirror/view'
+import { EditorView, placeholder as cmPlaceholder } from '@codemirror/view'
 import { minimalSetup } from 'codemirror'
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { codeEditorTheme } from '@/components/workbench/codeEditorTheme'
-import {
-  createFluxCompletionSource,
-  type FluxAutocompleteSchema,
-} from '@/services/influx/fluxAutocomplete'
-import { fluxLanguageSupport } from '@/services/influx/fluxLanguage'
-import type { FluxValidationIssue } from '@/services/influx/fluxValidation'
+import { yamlLanguageSupport } from '@/services/influx/yamlLanguage'
 
 const props = withDefaults(
   defineProps<{
     modelValue: string
-    completionSchema: FluxAutocompleteSchema
-    validationIssues?: FluxValidationIssue[]
     placeholder?: string
   }>(),
   {
     placeholder: '',
-    validationIssues: () => [],
   },
 )
 
@@ -44,49 +26,12 @@ const editorRoot = ref<HTMLDivElement | null>(null)
 let editorView: EditorView | null = null
 let isSyncingFromProps = false
 
-function toCodeMirrorDiagnostics(
-  issues: readonly FluxValidationIssue[],
-): Diagnostic[] {
-  return issues.map((issue) => ({
-    from: issue.from,
-    to: issue.to,
-    severity: issue.severity,
-    message: issue.message,
-    source: issue.source,
-  }))
-}
-
-function applyDiagnostics() {
-  if (!editorView) {
-    return
-  }
-
-  editorView.dispatch(
-    setDiagnostics(
-      editorView.state,
-      toCodeMirrorDiagnostics(props.validationIssues),
-    ),
-  )
-}
-
 function createExtensions() {
-  const completionSource = createFluxCompletionSource(
-    () => props.completionSchema,
-  )
-
   return [
     minimalSetup,
-    ...fluxLanguageSupport,
-    closeBrackets(),
-    keymap.of(closeBracketsKeymap),
+    ...yamlLanguageSupport,
     EditorView.lineWrapping,
     cmPlaceholder(props.placeholder),
-    autocompletion({
-      override: [completionSource],
-      activateOnTyping: true,
-      maxRenderedOptions: 14,
-      icons: false,
-    }),
     codeEditorTheme,
     EditorView.updateListener.of((update) => {
       if (!update.docChanged || isSyncingFromProps) {
@@ -110,8 +55,6 @@ function mountEditor() {
     }),
     parent: editorRoot.value,
   })
-
-  applyDiagnostics()
 }
 
 watch(
@@ -135,16 +78,7 @@ watch(
       },
     })
     isSyncingFromProps = false
-    applyDiagnostics()
   },
-)
-
-watch(
-  () => props.validationIssues,
-  () => {
-    applyDiagnostics()
-  },
-  { deep: true },
 )
 
 onMounted(() => {
@@ -158,15 +92,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div ref="editorRoot" class="flux-editor-root" />
+  <div ref="editorRoot" class="yaml-editor-root" />
 </template>
 
 <style scoped>
-.flux-editor-root {
+.yaml-editor-root {
   min-height: 300px;
 }
 
-.flux-editor-root :deep(.cm-editor) {
+.yaml-editor-root :deep(.cm-editor) {
   min-height: 300px;
 }
 </style>
