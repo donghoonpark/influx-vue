@@ -289,13 +289,13 @@ defineExpose<InfluxWorkbenchExposed>({
           @disconnect="disconnectWorkbench"
         />
       </NCard>
+    </div>
 
-      <div v-if="showConnectionOverlay" class="connection-overlay">
-        <div class="overlay-backdrop" />
-        <NCard class="connection-card" :bordered="false">
-          <ConnectionPanel :workbench="workbench" @connect="connectWorkbench" />
-        </NCard>
-      </div>
+    <div v-if="showConnectionOverlay" class="connection-overlay">
+      <div class="overlay-backdrop" />
+      <NCard class="connection-card" :bordered="false">
+        <ConnectionPanel :workbench="workbench" @connect="connectWorkbench" />
+      </NCard>
     </div>
 
     <transition name="floating-status">
@@ -327,6 +327,7 @@ defineExpose<InfluxWorkbenchExposed>({
 
 <style scoped>
 .workbench-shell {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -424,18 +425,18 @@ defineExpose<InfluxWorkbenchExposed>({
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  padding: 20px;
+  padding: clamp(28px, 7vh, 76px) 20px 20px;
   z-index: 10;
 }
 
 .overlay-backdrop {
   position: absolute;
   inset: 0;
-  border-radius: 28px;
+  border-radius: 32px;
   background: rgba(248, 250, 252, 0.82);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
 }
 
 .connection-card {
