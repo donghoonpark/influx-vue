@@ -6,7 +6,6 @@ Use this checklist before the first npm publish.
 
 These are the only items still best decided by the maintainer:
 
-- Choose an open-source license and add a `LICENSE` file.
 - Set the GitHub repository URL in `package.json` once the public repo exists.
 - Decide whether to keep the unscoped name `influx-vue` or publish under a scope such as `@your-scope/influx-vue`.
 
@@ -17,6 +16,7 @@ These are the only items still best decided by the maintainer:
 - Public assets from the demo app are excluded from the published tarball.
 - CSS is exported as `influx-vue/style.css`.
 - The package is no longer marked `private`.
+- The project license is `Apache-2.0`.
 
 ## Release steps
 
