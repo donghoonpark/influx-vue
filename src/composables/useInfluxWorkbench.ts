@@ -43,7 +43,7 @@ import type {
 
 const DEFAULT_AUTH_METHOD: InfluxAuthMethod = 'token'
 const LOCAL_DEMO_CONFIG: InfluxConnectionConfig = {
-  url: 'http://127.0.0.1:8086',
+  url: 'http://127.0.0.1:4173',
   org: 'influx-vue',
   token: 'influx-vue-admin-token',
   bucket: 'demo-metrics',
@@ -158,6 +158,17 @@ function sanitizeConnectionSnapshot(
   }
 }
 
+function resolveLocalDemoConfig(): InfluxConnectionConfig {
+  if (typeof window === 'undefined' || !window.location?.origin) {
+    return { ...LOCAL_DEMO_CONFIG }
+  }
+
+  return {
+    ...LOCAL_DEMO_CONFIG,
+    url: window.location.origin,
+  }
+}
+
 interface CachedMeasurementSchema {
   fields: string[]
   tagKeys: string[]
@@ -179,13 +190,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const authenticateConnection =
     options.authenticateConnection ?? authenticateBrowserInfluxConnection
   const storedConnection = readStoredConnection()
+  const localDemoConfig = resolveLocalDemoConfig()
 
   const connection = reactive<InfluxConnectionConfig>({
-    ...LOCAL_DEMO_CONFIG,
+    ...localDemoConfig,
     ...storedConnection,
     authMethod:
       storedConnection?.authMethod ??
-      LOCAL_DEMO_CONFIG.authMethod ??
+      localDemoConfig.authMethod ??
       DEFAULT_AUTH_METHOD,
     username: storedConnection?.username ?? '',
     password: '',
@@ -309,12 +321,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   }))
 
   function loadLocalDemoPreset() {
-    Object.assign(connection, LOCAL_DEMO_CONFIG)
-    selectedBucket.value = LOCAL_DEMO_CONFIG.bucket ?? ''
+    const nextDemoConfig = resolveLocalDemoConfig()
+
+    Object.assign(connection, nextDemoConfig)
+    selectedBucket.value = nextDemoConfig.bucket ?? ''
     status.value = createStatusMessage(
       'info',
       'Loaded local preset',
-      'Use docker compose and the seed script to start a local demo InfluxDB instance.',
+      'Use docker compose and the seed script to start a local demo InfluxDB instance behind the app proxy.',
     )
   }
 
@@ -663,8 +677,8 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       ? Boolean(
           connection.url.trim() &&
             connection.org.trim() &&
-            connection.username?.trim() &&
-            connection.password,
+            (connection.token.trim() ||
+              (connection.username?.trim() && connection.password)),
         )
       : Boolean(
           connection.url.trim() &&
@@ -675,7 +689,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     if (!hasRequiredCredentials) {
       const error = new Error(
         isPasswordAuth
-          ? 'Provide the InfluxDB URL, organization, username, and password before connecting.'
+          ? 'Provide the InfluxDB URL, organization, and username/password before connecting.'
           : 'Provide the InfluxDB URL, organization, and token before connecting.',
       )
       lastConnectionFailure.value = {
@@ -779,6 +793,9 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     dataSource.value = null
     health.value = null
     lastConnectionFailure.value = null
+    if (connection.authMethod === 'password') {
+      connection.token = ''
+    }
     clearSchemaCache()
     status.value = createStatusMessage(
       'info',

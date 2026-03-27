@@ -45,7 +45,7 @@ function updateBucket(value: string) {
       {{ workbench.status.value.message }}
     </NAlert>
 
-    <NForm label-placement="top">
+    <NForm label-placement="top" @submit.prevent="emit('connect')">
       <NGrid :cols="2" :x-gap="12">
         <NGi :span="2">
           <NFormItem label="Authentication">
@@ -91,6 +91,7 @@ function updateBucket(value: string) {
               type="password"
               show-password-on="click"
               placeholder="InfluxDB API token"
+              @keydown.enter.prevent="emit('connect')"
             />
           </NFormItem>
         </NGi>
@@ -111,6 +112,7 @@ function updateBucket(value: string) {
               type="password"
               show-password-on="click"
               placeholder="InfluxDB user password"
+              @keydown.enter.prevent="emit('connect')"
             />
           </NFormItem>
         </NGi>
@@ -122,8 +124,8 @@ function updateBucket(value: string) {
         :bordered="false"
         class="auth-hint"
       >
-        Browser password login works best through a same-origin proxy URL such as
-        <strong>/influx</strong>.
+        Password login issues a token through the current app origin, so keep the
+        URL on this app host or another same-origin proxy.
       </NAlert>
 
       <NFlex :size="12">
@@ -136,9 +138,9 @@ function updateBucket(value: string) {
         </NButton>
         <NButton
           type="primary"
+          attr-type="submit"
           :loading="workbench.isConnecting.value"
           :render-icon="renderNaiveIcon(LogInOutline)"
-          @click="emit('connect')"
         >
           Connect
         </NButton>

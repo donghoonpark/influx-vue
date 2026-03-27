@@ -211,7 +211,7 @@ describe('useInfluxWorkbench', () => {
     const authenticateConnection = vi.fn(async (config) => ({
       ...config,
       authMethod: 'password' as const,
-      token: '',
+      token: 'issued-token',
     }))
     const workbench = useInfluxWorkbench({
       authenticateConnection,
@@ -231,6 +231,10 @@ describe('useInfluxWorkbench', () => {
     expect(authenticateConnection).toHaveBeenCalledTimes(1)
     expect(workbench.connection.authMethod).toBe('password')
     expect(workbench.connection.username).toBe('influx')
+
+    workbench.disconnect()
+
+    expect(workbench.connection.token).toBe('')
   })
 
   it('requires username and password in password auth mode', async () => {

@@ -9,6 +9,24 @@ import type {
 } from '@/services/influx/types'
 
 const DEFAULT_AUTH_METHOD: InfluxAuthMethod = 'token'
+const WORKBENCH_SESSION_TOKEN_DESCRIPTION =
+  'Influx Vue Workbench session token'
+
+interface InfluxUserResponse {
+  id: string
+  name: string
+}
+
+interface InfluxOrgListResponse {
+  orgs?: Array<{
+    id: string
+    name: string
+  }>
+}
+
+interface InfluxAuthorizationResponse {
+  token?: string
+}
 
 function normalizeBaseUrl(url: string): string {
   return url.replace(/\/+$/, '')
@@ -18,8 +36,8 @@ function resolveAuthMethod(config: InfluxConnectionConfig): InfluxAuthMethod {
   return config.authMethod ?? DEFAULT_AUTH_METHOD
 }
 
-function usesPasswordAuth(config: InfluxConnectionConfig): boolean {
-  return resolveAuthMethod(config) === 'password'
+function usesSessionAuth(config: InfluxConnectionConfig): boolean {
+  return resolveAuthMethod(config) === 'password' && !config.token.trim()
 }
 
 function encodeBasicCredentials(username: string, password: string): string {
@@ -48,11 +66,11 @@ function encodeBasicCredentials(username: string, password: string): string {
 }
 
 function resolveRequestCredentials(config: InfluxConnectionConfig) {
-  return usesPasswordAuth(config) ? 'include' : 'omit'
+  return usesSessionAuth(config) ? 'include' : 'omit'
 }
 
 function buildAuthHeaders(config: InfluxConnectionConfig): HeadersInit {
-  if (usesPasswordAuth(config)) {
+  if (usesSessionAuth(config)) {
     return {
       Accept: 'application/json',
     }
@@ -107,6 +125,28 @@ async function requestJson<T>(
   return (await response.json()) as T
 }
 
+async function requestSessionJson<T>(
+  baseUrl: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const response = await fetch(`${baseUrl}${path}`, {
+    ...init,
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json',
+      ...(init.body ? { 'Content-Type': 'application/json' } : {}),
+      ...init.headers,
+    },
+  })
+
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response))
+  }
+
+  return (await response.json()) as T
+}
+
 async function ping(
   baseUrl: string,
   config: InfluxConnectionConfig,
@@ -130,19 +170,88 @@ async function ping(
   }
 }
 
+async function createSessionBackedToken(
+  baseUrl: string,
+  config: InfluxConnectionConfig,
+): Promise<string> {
+  const user = await requestSessionJson<InfluxUserResponse>(baseUrl, '/api/v2/me')
+  const orgs = await requestSessionJson<InfluxOrgListResponse>(
+    baseUrl,
+    `/api/v2/orgs?org=${encodeURIComponent(config.org)}`,
+  )
+  const org = orgs.orgs?.find((candidate) => candidate.name === config.org)
+
+  if (!org) {
+    throw new Error(`Could not resolve org "${config.org}" for this account.`)
+  }
+
+  let authorization: InfluxAuthorizationResponse
+
+  try {
+    authorization = await requestSessionJson<InfluxAuthorizationResponse>(
+      baseUrl,
+      '/api/v2/authorizations',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          status: 'active',
+          description: WORKBENCH_SESSION_TOKEN_DESCRIPTION,
+          orgID: org.id,
+          userID: user.id,
+          permissions: [
+            {
+              action: 'read',
+              resource: {
+                type: 'orgs',
+                orgID: org.id,
+              },
+            },
+            {
+              action: 'read',
+              resource: {
+                type: 'buckets',
+                orgID: org.id,
+              },
+            },
+          ],
+        }),
+      },
+    )
+  } catch (error) {
+    throw new Error(
+      `Signed in, but token issuance failed. Ensure this account can write authorizations. ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+
+  if (!authorization.token) {
+    throw new Error(
+      'The account signed in, but InfluxDB did not return a token from /api/v2/authorizations.',
+    )
+  }
+
+  return authorization.token
+}
+
 export async function authenticateBrowserInfluxConnection(
   config: InfluxConnectionConfig,
 ): Promise<InfluxConnectionConfig> {
-  if (!usesPasswordAuth(config)) {
+  if (resolveAuthMethod(config) !== 'password') {
     return {
       ...config,
       authMethod: resolveAuthMethod(config),
     }
   }
 
+  if (config.token.trim()) {
+    return {
+      ...config,
+      authMethod: 'password',
+    }
+  }
+
   if (!isSameOriginBrowserUrl(config.url)) {
     throw new Error(
-      'Username/password login in the browser requires a same-origin URL or reverse proxy such as /influx.',
+      'Username/password login in the browser requires a same-origin URL or reverse proxy on the current app origin.',
     )
   }
 
@@ -165,7 +274,7 @@ export async function authenticateBrowserInfluxConnection(
   return {
     ...config,
     authMethod: 'password',
-    token: '',
+    token: await createSessionBackedToken(baseUrl, config),
   }
 }
 
@@ -173,8 +282,8 @@ export function createBrowserInfluxDataSource(config: InfluxConnectionConfig) {
   const baseUrl = normalizeBaseUrl(config.url)
   const influxDB = new InfluxDB({
     url: baseUrl,
-    token: usesPasswordAuth(config) ? undefined : config.token,
-    transportOptions: usesPasswordAuth(config)
+    token: usesSessionAuth(config) ? undefined : config.token,
+    transportOptions: usesSessionAuth(config)
       ? { credentials: 'include' }
       : undefined,
   })

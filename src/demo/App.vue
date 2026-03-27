@@ -10,7 +10,10 @@ import {
 import { InfluxWorkbench } from '@/index'
 
 const demoConnection = {
-  url: 'http://127.0.0.1:8086',
+  url:
+    typeof window === 'undefined'
+      ? 'http://127.0.0.1:4173'
+      : window.location.origin,
   org: 'influx-vue',
   bucket: 'demo-metrics',
   token: 'influx-vue-admin-token',

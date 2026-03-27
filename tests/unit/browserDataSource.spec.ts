@@ -25,19 +25,40 @@ describe('authenticateBrowserInfluxConnection', () => {
   it('signs in with username and password for same-origin URLs', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'user-1', name: 'influx' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ orgs: [{ id: 'org-1', name: 'influx-vue' }] }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ token: 'issued-token' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      )
 
     const connection = await authenticateBrowserInfluxConnection({
-      url: '/influx',
+      url: window.location.origin,
       org: 'influx-vue',
-      token: 'stale-token',
+      token: '',
       authMethod: 'password',
       username: 'influx',
       password: 'influx-password-123',
     })
 
     expect(fetchSpy).toHaveBeenCalledWith(
-      '/influx/api/v2/signin',
+      `${window.location.origin}/api/v2/signin`,
       expect.objectContaining({
         method: 'POST',
         credentials: 'include',
@@ -46,7 +67,14 @@ describe('authenticateBrowserInfluxConnection', () => {
         }),
       }),
     )
-    expect(connection.token).toBe('')
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      `${window.location.origin}/api/v2/authorizations`,
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+      }),
+    )
+    expect(connection.token).toBe('issued-token')
     expect(connection.authMethod).toBe('password')
   })
 

@@ -3,8 +3,21 @@ import { fileURLToPath, URL } from 'node:url'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig } from 'vite'
 
+const influxProxy = {
+  '/api': {
+    target: 'http://127.0.0.1:8086',
+    changeOrigin: true,
+  },
+}
+
 export default defineConfig({
   plugins: [vue()],
+  server: {
+    proxy: influxProxy,
+  },
+  preview: {
+    proxy: influxProxy,
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
