@@ -37,7 +37,8 @@ const demoDashboardYaml = computed(() =>
   exportDashboardYaml(
     createDashboardDefinition({
       name: 'Influx dashboard demo',
-      description: 'YAML-driven dashboard rendering against the seeded demo InfluxDB.',
+      description:
+        'YAML-driven dashboard rendering against the seeded demo InfluxDB.',
       columns: 2,
       connection: {
         url: demoOrigin,
@@ -65,6 +66,24 @@ const demoDashboardYaml = computed(() =>
           },
         }),
         createDashboardPanel({
+          id: 'system-events',
+          title: 'System Events',
+          visualization: 'split',
+          queryMode: 'builder',
+          query: {
+            bucket: 'demo-metrics',
+            measurement: 'system_event',
+            fields: ['message'],
+            rangePreset: 'last_24h',
+            customStart: '',
+            customStop: '',
+            aggregateWindow: '',
+            aggregateFunction: 'none',
+            limit: 2000,
+            tagFilters: [],
+          },
+        }),
+        createDashboardPanel({
           id: 'sensor-temperature',
           title: 'Sensor Temperature',
           visualization: 'split',
@@ -78,6 +97,24 @@ const demoDashboardYaml = computed(() =>
             customStop: '',
             aggregateWindow: '1s',
             aggregateFunction: 'mean',
+            limit: 2000,
+            tagFilters: [],
+          },
+        }),
+        createDashboardPanel({
+          id: 'sensor-events',
+          title: 'Sensor Events',
+          visualization: 'split',
+          queryMode: 'builder',
+          query: {
+            bucket: 'edge-sensors',
+            measurement: 'sensor_event',
+            fields: ['message'],
+            rangePreset: 'last_24h',
+            customStart: '',
+            customStop: '',
+            aggregateWindow: '',
+            aggregateFunction: 'none',
             limit: 2000,
             tagFilters: [],
           },
@@ -98,7 +135,8 @@ const demoDashboardYaml = computed(() =>
               <NTabPane name="workbench" tab="Workbench">
                 <NAlert type="info" :bordered="false" class="demo-note">
                   <NText depth="3">
-                    Explorer workbench wired to the local demo InfluxDB through the Vite `/api` proxy.
+                    Explorer workbench wired to the local demo InfluxDB through
+                    the Vite `/api` proxy.
                   </NText>
                 </NAlert>
 
@@ -112,7 +150,8 @@ const demoDashboardYaml = computed(() =>
               <NTabPane name="dashboard" tab="Dashboard YAML">
                 <NAlert type="info" :bordered="false" class="demo-note">
                   <NText depth="3">
-                    Standalone dashboard component driven only by a YAML string.
+                    Standalone dashboard component driven only by a YAML string,
+                    including seeded text event panels.
                   </NText>
                 </NAlert>
 
