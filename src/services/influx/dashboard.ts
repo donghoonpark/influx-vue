@@ -57,6 +57,29 @@ export interface CreateDashboardPanelInput {
   rawFlux?: string
 }
 
+interface SerializableQueryBuilderState {
+  bucket: string
+  measurements: string[]
+  fields: string[]
+  rangePreset: RangePresetKey
+  customStart: string
+  customStop: string
+  aggregateWindow: string
+  aggregateFunction: AggregateFunction
+  limit: number
+  tagFilters: TagFilter[]
+}
+
+interface SerializableDashboardPanelDefinition
+  extends Omit<InfluxDashboardPanelDefinition, 'query'> {
+  query: SerializableQueryBuilderState
+}
+
+interface SerializableDashboardDefinition
+  extends Omit<InfluxDashboardDefinition, 'panels'> {
+  panels: SerializableDashboardPanelDefinition[]
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
@@ -182,6 +205,28 @@ export function cloneQueryBuilderState(
     aggregateFunction: state.aggregateFunction,
     limit: state.limit,
     tagFilters: state.tagFilters.map((filter) => ({
+      tagKey: filter.tagKey,
+      values: [...filter.values],
+    })),
+  }
+}
+
+function serializeQueryBuilderState(
+  state: QueryBuilderState,
+): SerializableQueryBuilderState {
+  const normalizedState = cloneQueryBuilderState(state)
+
+  return {
+    bucket: normalizedState.bucket,
+    measurements: resolveQueryMeasurements(normalizedState),
+    fields: [...normalizedState.fields],
+    rangePreset: normalizedState.rangePreset,
+    customStart: normalizedState.customStart,
+    customStop: normalizedState.customStop,
+    aggregateWindow: normalizedState.aggregateWindow,
+    aggregateFunction: normalizedState.aggregateFunction,
+    limit: normalizedState.limit,
+    tagFilters: normalizedState.tagFilters.map((filter) => ({
       tagKey: filter.tagKey,
       values: [...filter.values],
     })),
@@ -316,10 +361,24 @@ export function normalizeDashboardDefinition(
   })
 }
 
+function serializeDashboardDefinition(
+  dashboard: InfluxDashboardDefinition,
+): SerializableDashboardDefinition {
+  const normalized = normalizeDashboardDefinition(dashboard)
+
+  return {
+    ...normalized,
+    panels: normalized.panels.map((panel) => ({
+      ...panel,
+      query: serializeQueryBuilderState(panel.query),
+    })),
+  }
+}
+
 export function serializeDashboardToYaml(
   dashboard: InfluxDashboardDefinition,
 ): string {
-  return stringify(normalizeDashboardDefinition(dashboard))
+  return stringify(serializeDashboardDefinition(dashboard))
 }
 
 export function exportDashboardYaml(
@@ -371,7 +430,7 @@ export function maskDashboardDefinitionSecrets(
 export function serializeDashboardToDisplayYaml(
   dashboard: InfluxDashboardDefinition,
 ): string {
-  return stringify(maskDashboardDefinitionSecrets(dashboard))
+  return stringify(serializeDashboardDefinition(maskDashboardDefinitionSecrets(dashboard)))
 }
 
 export function parseDashboardYaml(source: string): InfluxDashboardDefinition {

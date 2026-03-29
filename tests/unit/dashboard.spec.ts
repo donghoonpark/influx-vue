@@ -43,6 +43,8 @@ describe('dashboard helpers', () => {
     const yaml = serializeDashboardToYaml(dashboard)
     const parsed = parseDashboardYaml(yaml)
 
+    expect(yaml).toContain('measurements:')
+    expect(yaml).not.toContain('\n      measurement:')
     expect(parsed.name).toBe('Operations overview')
     expect(parsed.columns).toBe(3)
     expect(parsed.panels).toHaveLength(1)
