@@ -1,5 +1,7 @@
+import InfluxDashboard from '@/components/InfluxDashboard.vue'
 import InfluxWorkbench from '@/components/InfluxWorkbench.vue'
 
+export { InfluxDashboard }
 export { InfluxWorkbench }
 export type {
   InfluxAuthMethod,
@@ -9,11 +11,24 @@ export type {
   InfluxConnectPhase,
   InfluxConnectionFailure,
 } from '@/services/influx/types'
+export {
+  createDashboardConnection,
+  exportDashboardYaml,
+  maskDashboardDefinitionSecrets,
+  serializeDashboardToDisplayYaml,
+} from '@/services/influx/dashboard'
 export type {
+  InfluxDashboardConnection,
   InfluxDashboardDefinition,
   InfluxDashboardPanelDefinition,
   InfluxPanelVisualization,
 } from '@/services/influx/dashboard'
+export type {
+  InfluxDashboardAuthenticateConnection,
+  InfluxDashboardCreateDataSource,
+  InfluxDashboardExposed,
+  InfluxDashboardProps,
+} from '@/components/dashboard/types'
 export type {
   InfluxWorkbenchConnectError,
   InfluxWorkbenchConnectEvent,

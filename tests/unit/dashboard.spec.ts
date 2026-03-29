@@ -2,9 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildDashboardPanelFlux,
+  createDashboardConnection,
   createDashboardDefinition,
   createDashboardPanel,
+  exportDashboardYaml,
+  maskDashboardDefinitionSecrets,
   parseDashboardYaml,
+  serializeDashboardToDisplayYaml,
   serializeDashboardToYaml,
 } from '@/services/influx/dashboard'
 
@@ -109,5 +113,107 @@ panels:
     expect(buildDashboardPanelFlux(parsed.panels[0]!)).not.toContain(
       'aggregateWindow',
     )
+  })
+
+  it('serializes and parses dashboard with connection', () => {
+    const dashboard = createDashboardDefinition({
+      name: 'Dashboard with connection',
+      columns: 2,
+      connection: {
+        url: 'http://localhost:8086',
+        org: 'influx-vue',
+        bucket: 'demo-metrics',
+        authMethod: 'token',
+        token: 'test-token',
+      },
+      panels: [],
+    })
+
+    const yaml = serializeDashboardToYaml(dashboard)
+    const parsed = parseDashboardYaml(yaml)
+
+    expect(parsed.name).toBe('Dashboard with connection')
+    expect(parsed.connection).toBeDefined()
+    expect(parsed.connection?.url).toBe('http://localhost:8086')
+    expect(parsed.connection?.org).toBe('influx-vue')
+    expect(parsed.connection?.bucket).toBe('demo-metrics')
+    expect(parsed.connection?.authMethod).toBe('token')
+    expect(parsed.connection?.token).toBe('test-token')
+  })
+
+  it('creates a normalized dashboard connection from Influx config', () => {
+    const connection = createDashboardConnection({
+      url: 'http://localhost:8086',
+      org: 'influx-vue',
+      bucket: 'demo-metrics',
+      authMethod: 'token',
+      token: 'secret-token',
+      password: 'should-not-be-exported',
+    })
+
+    expect(connection).toEqual({
+      url: 'http://localhost:8086',
+      org: 'influx-vue',
+      bucket: 'demo-metrics',
+      authMethod: 'token',
+      token: 'secret-token',
+      username: undefined,
+    })
+  })
+
+  it('masks tokens in display yaml but keeps raw export intact', () => {
+    const dashboard = createDashboardDefinition({
+      name: 'Masked dashboard',
+      connection: {
+        url: 'http://localhost:8086',
+        org: 'influx-vue',
+        authMethod: 'token',
+        token: 'secret-token',
+      },
+      panels: [],
+    })
+
+    const masked = maskDashboardDefinitionSecrets(dashboard)
+    const displayYaml = serializeDashboardToDisplayYaml(dashboard)
+    const exportYaml = exportDashboardYaml(dashboard)
+
+    expect(masked.connection?.token).toBe('****')
+    expect(displayYaml).toContain('token: "****"')
+    expect(exportYaml).toContain('token: secret-token')
+  })
+
+  it('parses dashboard with connection from YAML', () => {
+    const parsed = parseDashboardYaml(`
+version: 1
+name: Dashboard with connection
+columns: 2
+connection:
+  url: http://localhost:8086
+  org: influx-vue
+  bucket: demo-metrics
+  authMethod: password
+  username: influx
+panels: []
+`)
+
+    expect(parsed.name).toBe('Dashboard with connection')
+    expect(parsed.connection).toBeDefined()
+    expect(parsed.connection?.url).toBe('http://localhost:8086')
+    expect(parsed.connection?.org).toBe('influx-vue')
+    expect(parsed.connection?.bucket).toBe('demo-metrics')
+    expect(parsed.connection?.authMethod).toBe('password')
+    expect(parsed.connection?.username).toBe('influx')
+  })
+
+  it('handles missing connection gracefully', () => {
+    const parsed = parseDashboardYaml(`
+version: 1
+name: Dashboard without connection
+columns: 2
+panels: []
+`)
+
+    expect(parsed.name).toBe('Dashboard without connection')
+    expect(parsed.connection).toBeUndefined()
   })
 })

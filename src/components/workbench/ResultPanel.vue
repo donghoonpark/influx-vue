@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 
 import { DocumentTextOutline } from '@vicons/ionicons5'
 import { NAlert, NButton, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
@@ -9,8 +9,9 @@ import InfluxResultChart from '@/components/InfluxResultChart.vue'
 import InfluxResultTable from '@/components/InfluxResultTable.vue'
 import YamlCodeEditor from '@/components/workbench/YamlCodeEditor.vue'
 import {
+  createDashboardConnection,
   createDashboardDefinition,
-  serializeDashboardToYaml,
+  serializeDashboardToDisplayYaml,
 } from '@/services/influx/dashboard'
 import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
@@ -19,9 +20,8 @@ const props = defineProps<{
 }>()
 
 const resultTab = ref<'chart' | 'table' | 'yaml'>('chart')
-const yamlDraft = ref('')
 
-const currentYamlDefinition = computed(() => {
+const currentDashboardDefinition = computed(() => {
   const currentPanel = props.workbench.createCurrentPanelSnapshot({
     title: props.workbench.selectedMeasurement.value
       ? `${props.workbench.selectedMeasurement.value} preview`
@@ -36,14 +36,16 @@ const currentYamlDefinition = computed(() => {
       : '',
     columns: 1,
     panels: currentPanel ? [currentPanel] : [],
+    connection: createDashboardConnection(props.workbench.connection),
   })
 })
 
-const serializedYaml = computed(() =>
-  serializeDashboardToYaml(currentYamlDefinition.value),
+const displayYaml = computed(() =>
+  serializeDashboardToDisplayYaml(currentDashboardDefinition.value),
 )
-
-const isYamlDirty = computed(() => yamlDraft.value !== serializedYaml.value)
+const hasMaskedToken = computed(() =>
+  Boolean(currentDashboardDefinition.value.connection?.token),
+)
 const resultNotice = computed(() => {
   if (!props.workbench.hasExecutedQuery.value) {
     return null
@@ -78,20 +80,6 @@ const resultNotice = computed(() => {
 
   return null
 })
-
-watch(
-  serializedYaml,
-  (nextValue, previousValue) => {
-    if (!yamlDraft.value.trim() || yamlDraft.value === previousValue) {
-      yamlDraft.value = nextValue
-    }
-  },
-  { immediate: true },
-)
-
-function syncYamlFromState() {
-  yamlDraft.value = serializedYaml.value
-}
 </script>
 
 <template>
@@ -119,21 +107,17 @@ function syncYamlFromState() {
         <div class="yaml-shell">
           <div class="yaml-toolbar">
             <NFlex :size="8">
-              <NTag v-if="isYamlDirty" type="warning">Unsaved edits</NTag>
-              <NButton
-                secondary
-                size="small"
-                :render-icon="renderNaiveIcon(DocumentTextOutline)"
-                @click="syncYamlFromState()"
-              >
-                Load current state
+              <NTag v-if="hasMaskedToken" type="warning">Token masked</NTag>
+              <NButton secondary size="small" :render-icon="renderNaiveIcon(DocumentTextOutline)">
+                YAML snapshot
               </NButton>
             </NFlex>
           </div>
 
           <YamlCodeEditor
-            v-model="yamlDraft"
+            :model-value="displayYaml"
             placeholder="Current selection YAML will appear here."
+            read-only
           />
         </div>
       </NTabPane>

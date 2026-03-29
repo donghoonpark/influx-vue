@@ -3,6 +3,8 @@ import { parse, stringify } from 'yaml'
 import { buildFluxQuery } from '@/services/influx/flux'
 import type {
   AggregateFunction,
+  InfluxAuthMethod,
+  InfluxConnectionConfig,
   QueryBuilderState,
   QueryMode,
   RangePresetKey,
@@ -16,6 +18,15 @@ export const PANEL_VISUALIZATIONS = ['chart', 'table', 'split'] as const
 export type InfluxDashboardColumns = (typeof DASHBOARD_COLUMN_OPTIONS)[number]
 
 export type InfluxPanelVisualization = (typeof PANEL_VISUALIZATIONS)[number]
+
+export interface InfluxDashboardConnection {
+  url: string
+  org: string
+  bucket?: string
+  authMethod: InfluxAuthMethod
+  token?: string
+  username?: string
+}
 
 export interface InfluxDashboardPanelDefinition {
   id: string
@@ -33,6 +44,7 @@ export interface InfluxDashboardDefinition {
   description: string
   columns: InfluxDashboardColumns
   panels: InfluxDashboardPanelDefinition[]
+  connection?: InfluxDashboardConnection
 }
 
 export interface CreateDashboardPanelInput {
@@ -211,6 +223,36 @@ export function createDashboardDefinition(
     panels: (overrides.panels ?? []).map((panel) =>
       normalizeDashboardPanel(panel),
     ),
+    connection: normalizeConnection(overrides.connection),
+  }
+}
+
+function normalizeAuthMethod(value: unknown): InfluxAuthMethod {
+  const normalized = String(value ?? 'token')
+  return normalized === 'password' ? 'password' : 'token'
+}
+
+function normalizeConnection(
+  value: unknown,
+): InfluxDashboardConnection | undefined {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const url = String(value.url ?? '').trim()
+  const org = String(value.org ?? '').trim()
+
+  if (!url || !org) {
+    return undefined
+  }
+
+  return {
+    url,
+    org,
+    bucket: value.bucket ? String(value.bucket).trim() : undefined,
+    authMethod: normalizeAuthMethod(value.authMethod),
+    token: value.token ? String(value.token).trim() : undefined,
+    username: value.username ? String(value.username).trim() : undefined,
   }
 }
 
@@ -224,6 +266,7 @@ export function normalizeDashboardDefinition(
     description: String(record.description ?? ''),
     columns: record.columns as InfluxDashboardColumns,
     panels: Array.isArray(record.panels) ? record.panels : [],
+    connection: normalizeConnection(record.connection),
   })
 }
 
@@ -231,6 +274,58 @@ export function serializeDashboardToYaml(
   dashboard: InfluxDashboardDefinition,
 ): string {
   return stringify(normalizeDashboardDefinition(dashboard))
+}
+
+export function exportDashboardYaml(
+  dashboard: InfluxDashboardDefinition,
+): string {
+  return serializeDashboardToYaml(dashboard)
+}
+
+export function createDashboardConnection(
+  config: Partial<InfluxConnectionConfig>,
+): InfluxDashboardConnection | undefined {
+  const url = String(config.url ?? '').trim()
+  const org = String(config.org ?? '').trim()
+
+  if (!url || !org) {
+    return undefined
+  }
+
+  return normalizeConnection({
+    url,
+    org,
+    bucket: config.bucket,
+    authMethod: config.authMethod,
+    token: config.token,
+    username: config.username,
+  })
+}
+
+function maskToken(token?: string): string | undefined {
+  return token?.trim() ? '****' : undefined
+}
+
+export function maskDashboardDefinitionSecrets(
+  dashboard: InfluxDashboardDefinition,
+): InfluxDashboardDefinition {
+  const normalized = normalizeDashboardDefinition(dashboard)
+
+  return {
+    ...normalized,
+    connection: normalized.connection
+      ? {
+          ...normalized.connection,
+          token: maskToken(normalized.connection.token),
+        }
+      : undefined,
+  }
+}
+
+export function serializeDashboardToDisplayYaml(
+  dashboard: InfluxDashboardDefinition,
+): string {
+  return stringify(maskDashboardDefinitionSecrets(dashboard))
 }
 
 export function parseDashboardYaml(source: string): InfluxDashboardDefinition {

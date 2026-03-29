@@ -11,9 +11,11 @@ const props = withDefaults(
   defineProps<{
     modelValue: string
     placeholder?: string
+    readOnly?: boolean
   }>(),
   {
     placeholder: '',
+    readOnly: false,
   },
 )
 
@@ -31,6 +33,8 @@ function createExtensions() {
     minimalSetup,
     ...yamlLanguageSupport,
     EditorView.lineWrapping,
+    EditorState.readOnly.of(props.readOnly),
+    EditorView.editable.of(!props.readOnly),
     cmPlaceholder(props.placeholder),
     codeEditorTheme,
     EditorView.updateListener.of((update) => {
