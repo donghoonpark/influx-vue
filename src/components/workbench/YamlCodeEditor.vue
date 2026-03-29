@@ -102,9 +102,29 @@ onBeforeUnmount(() => {
 <style scoped>
 .yaml-editor-root {
   min-height: 300px;
+  border: 1px solid rgba(51, 65, 85, 0.88);
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.98), rgba(15, 23, 42, 0.98));
 }
 
 .yaml-editor-root :deep(.cm-editor) {
   min-height: 300px;
+  background: transparent;
+}
+
+.yaml-editor-root :deep(.cm-gutters) {
+  background: rgba(2, 6, 23, 0.72);
+  color: rgba(148, 163, 184, 0.84);
+  border-right: 1px solid rgba(51, 65, 85, 0.7);
+}
+
+.yaml-editor-root :deep(.cm-activeLineGutter) {
+  background: rgba(15, 23, 42, 0.92);
+}
+
+.yaml-editor-root :deep(.cm-panels) {
+  background: rgba(2, 6, 23, 0.96);
 }
 </style>
