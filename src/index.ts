@@ -12,10 +12,15 @@ export type {
   InfluxConnectionFailure,
 } from '@/services/influx/types'
 export {
+  buildDashboardPanelFlux,
   createDashboardConnection,
+  createDashboardDefinition,
+  createDashboardPanel,
   exportDashboardYaml,
   maskDashboardDefinitionSecrets,
+  parseDashboardYaml,
   serializeDashboardToDisplayYaml,
+  serializeDashboardToYaml,
 } from '@/services/influx/dashboard'
 export type {
   InfluxDashboardConnection,
