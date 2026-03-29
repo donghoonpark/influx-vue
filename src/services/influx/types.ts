@@ -115,9 +115,21 @@ export interface ChartSeries {
   points: ChartSeriesPoint[]
 }
 
+export interface ChartAnnotationPoint {
+  time: string
+  value: string
+}
+
+export interface ChartAnnotationSeries {
+  key: string
+  name: string
+  points: ChartAnnotationPoint[]
+}
+
 export interface QuerySummary {
   rowCount: number
   numericRowCount: number
+  annotationRowCount: number
   seriesCount: number
   firstTimestamp?: string
   lastTimestamp?: string

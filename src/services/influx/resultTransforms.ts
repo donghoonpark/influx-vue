@@ -1,4 +1,5 @@
 import type {
+  ChartAnnotationSeries,
   ChartSeries,
   InfluxRow,
   InfluxScalar,
@@ -18,6 +19,14 @@ const RESERVED_ROW_KEYS = new Set([
 
 function toComparableString(value: InfluxScalar | undefined): string | null {
   if (value === null || value === undefined) {
+    return null
+  }
+
+  return String(value)
+}
+
+function toAnnotationText(value: InfluxScalar | undefined): string | null {
+  if (value === null || value === undefined || typeof value === 'number') {
     return null
   }
 
@@ -83,6 +92,41 @@ export function rowsToChartSeries(rows: InfluxRow[]): ChartSeries[] {
   }))
 }
 
+export function rowsToAnnotationSeries(
+  rows: InfluxRow[],
+): ChartAnnotationSeries[] {
+  const seriesMap = new Map<string, ChartAnnotationSeries>()
+
+  rows.forEach((row) => {
+    const annotation = toAnnotationText(row._value)
+
+    if (!annotation || !row._time) {
+      return
+    }
+
+    const label = buildSeriesLabel(row)
+    const series = seriesMap.get(label.key) ?? {
+      key: `${label.key}|annotation`,
+      name: label.name,
+      points: [],
+    }
+
+    series.points.push({
+      time: row._time,
+      value: annotation,
+    })
+
+    seriesMap.set(label.key, series)
+  })
+
+  return [...seriesMap.values()].map((series) => ({
+    ...series,
+    points: [...series.points].sort((left, right) =>
+      left.time.localeCompare(right.time),
+    ),
+  }))
+}
+
 export function summarizeRows(rows: InfluxRow[]): QuerySummary {
   const timestamps = rows
     .map((row) => row._time)
@@ -90,12 +134,16 @@ export function summarizeRows(rows: InfluxRow[]): QuerySummary {
     .sort((left, right) => left.localeCompare(right))
 
   const chartSeries = rowsToChartSeries(rows)
+  const annotationSeries = rowsToAnnotationSeries(rows)
 
   return {
     rowCount: rows.length,
     numericRowCount: rows.filter((row) => typeof row._value === 'number')
       .length,
-    seriesCount: chartSeries.length,
+    annotationRowCount: rows.filter(
+      (row) => Boolean(row._time) && Boolean(toAnnotationText(row._value)),
+    ).length,
+    seriesCount: chartSeries.length + annotationSeries.length,
     firstTimestamp: timestamps[0],
     lastTimestamp: timestamps[timestamps.length - 1],
   }

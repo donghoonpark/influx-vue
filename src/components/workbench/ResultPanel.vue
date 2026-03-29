@@ -46,6 +46,13 @@ const displayYaml = computed(() =>
 const hasMaskedToken = computed(() =>
   Boolean(currentDashboardDefinition.value.connection?.token),
 )
+const hasAnnotationRows = computed(() =>
+  props.workbench.rows.value.some(
+    (row) =>
+      Boolean(row._time) &&
+      (typeof row._value === 'string' || typeof row._value === 'boolean'),
+  ),
+)
 const resultNotice = computed(() => {
   if (!props.workbench.hasExecutedQuery.value) {
     return null
@@ -69,12 +76,15 @@ const resultNotice = computed(() => {
     }
   }
 
-  if (props.workbench.summary.value.numericRowCount === 0) {
+  if (
+    props.workbench.summary.value.numericRowCount === 0 &&
+    !hasAnnotationRows.value
+  ) {
     return {
       type: 'warning' as const,
       title: 'No numeric series to chart',
       message:
-        'Rows were returned, but the chart needs numeric _value fields. The table tab still contains the raw result.',
+        'Rows were returned, but the chart needs numeric or string-valued _value fields with timestamps. The table tab still contains the raw result.',
     }
   }
 
@@ -108,7 +118,11 @@ const resultNotice = computed(() => {
           <div class="yaml-toolbar">
             <NFlex :size="8">
               <NTag v-if="hasMaskedToken" type="warning">Token masked</NTag>
-              <NButton secondary size="small" :render-icon="renderNaiveIcon(DocumentTextOutline)">
+              <NButton
+                secondary
+                size="small"
+                :render-icon="renderNaiveIcon(DocumentTextOutline)"
+              >
                 YAML snapshot
               </NButton>
             </NFlex>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   collectColumnKeys,
   extractValueList,
+  rowsToAnnotationSeries,
   rowsToChartSeries,
   summarizeRows,
 } from '@/services/influx/resultTransforms'
@@ -52,11 +53,25 @@ describe('resultTransforms', () => {
     expect(series[0].points.length + series[1].points.length).toBe(3)
   })
 
+  it('groups string rows into annotation series by field and tags', () => {
+    const annotations = rowsToAnnotationSeries(sampleRows)
+
+    expect(annotations).toHaveLength(1)
+    expect(annotations[0].name).toContain('region')
+    expect(annotations[0].points).toEqual([
+      {
+        time: '2026-03-26T00:00:00Z',
+        value: 'ap-northeast-2',
+      },
+    ])
+  })
+
   it('summarizes row and series counts', () => {
     expect(summarizeRows(sampleRows)).toMatchObject({
       rowCount: 4,
       numericRowCount: 3,
-      seriesCount: 2,
+      annotationRowCount: 1,
+      seriesCount: 3,
       firstTimestamp: '2026-03-26T00:00:00Z',
       lastTimestamp: '2026-03-26T00:05:00Z',
     })

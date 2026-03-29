@@ -32,6 +32,19 @@ function timestampAt(
 export function buildSeedBuckets(nowMs = Date.now()): SeedBucketDefinition[] {
   const sampleCount = 1200
   const stepMs = 100
+  const systemEventMessages = [
+    'deploy started',
+    'cache warmup',
+    'autoscale triggered',
+    'deploy completed',
+    'traffic shifted',
+  ]
+  const sensorEventMessages = [
+    'calibration started',
+    'calibration complete',
+    'maintenance check',
+    'operator inspection',
+  ]
 
   const demoRandom = createPseudoRandom(11)
   const sensorRandom = createPseudoRandom(29)
@@ -180,6 +193,36 @@ export function buildSeedBuckets(nowMs = Date.now()): SeedBucketDefinition[] {
         )
         .timestamp(timestamp),
     )
+
+    if (index % 100 === 0) {
+      demoPoints.push(
+        new Point('system_event')
+          .tag('host', index % 200 === 0 ? 'alpha' : 'beta')
+          .tag('service', index % 200 === 0 ? 'frontend' : 'worker')
+          .stringField(
+            'message',
+            systemEventMessages[
+              Math.floor(index / 100) % systemEventMessages.length
+            ],
+          )
+          .timestamp(timestamp),
+      )
+    }
+
+    if (index % 150 === 0) {
+      sensorPoints.push(
+        new Point('sensor_event')
+          .tag('site', 'factory-seoul')
+          .tag('device', index % 300 === 0 ? 'temp-sensor-a' : 'humid-sensor-a')
+          .stringField(
+            'message',
+            sensorEventMessages[
+              Math.floor(index / 150) % sensorEventMessages.length
+            ],
+          )
+          .timestamp(timestamp),
+      )
+    }
   }
 
   return [
