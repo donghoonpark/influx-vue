@@ -36,6 +36,21 @@ const RANGE_PRESET_LOOKUP = Object.fromEntries(
   RANGE_PRESETS.map((preset) => [preset.key, preset]),
 )
 
+function uniqueStringsInOrder(values: string[]): string[] {
+  const result: string[] = []
+
+  values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      if (!result.includes(value)) {
+        result.push(value)
+      }
+    })
+
+  return result
+}
+
 export function quoteFluxString(value: string): string {
   return JSON.stringify(value)
 }
@@ -138,6 +153,29 @@ export function buildTagValuesFlux(
   ].join('\n')
 }
 
+export function resolveMeasurementSelection(
+  state: QueryBuilderState,
+): string[] {
+  const selectedMeasurements = uniqueStringsInOrder([
+    ...(state.measurements ?? []),
+    state.measurement,
+  ])
+
+  return selectedMeasurements
+}
+
+function buildMeasurementFilter(measurements: string[]): string {
+  if (measurements.length === 1) {
+    return `  |> filter(fn: (r) => r._measurement == ${quoteFluxString(measurements[0])})`
+  }
+
+  const conditions = measurements
+    .map((measurement) => `r._measurement == ${quoteFluxString(measurement)}`)
+    .join(' or ')
+
+  return `  |> filter(fn: (r) => ${conditions})`
+}
+
 function buildFieldFilter(fields: string[]): string {
   if (fields.length === 1) {
     return `  |> filter(fn: (r) => r._field == ${quoteFluxString(fields[0])})`
@@ -168,8 +206,11 @@ export function buildFluxQuery(state: QueryBuilderState): string {
   if (!state.bucket.trim()) {
     throw new Error('A bucket must be selected before building a query.')
   }
-  if (!state.measurement.trim()) {
-    throw new Error('A measurement must be selected before building a query.')
+  const measurements = resolveMeasurementSelection(state)
+  if (measurements.length === 0) {
+    throw new Error(
+      'At least one measurement must be selected before building a query.',
+    )
   }
   if (state.fields.length === 0) {
     throw new Error('Select at least one field before running a query.')
@@ -183,7 +224,7 @@ export function buildFluxQuery(state: QueryBuilderState): string {
     stop
       ? `  |> range(start: ${start}, stop: ${stop})`
       : `  |> range(start: ${start})`,
-    `  |> filter(fn: (r) => r._measurement == ${quoteFluxString(state.measurement)})`,
+    buildMeasurementFilter(measurements),
     buildFieldFilter(state.fields),
   ]
 

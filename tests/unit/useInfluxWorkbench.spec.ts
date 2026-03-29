@@ -121,6 +121,71 @@ function createMultiBucketDataSource() {
   return dataSource
 }
 
+function createMultiMeasurementUnionDataSource() {
+  const rows: InfluxRow[] = [
+    {
+      _time: '2026-03-26T00:00:00Z',
+      _measurement: 'system',
+      _field: 'usage_user',
+      _value: 42,
+      host: 'alpha',
+      region: 'ap-northeast-2',
+    },
+    {
+      _time: '2026-03-26T00:00:00Z',
+      _measurement: 'memory',
+      _field: 'used_percent',
+      _value: 68,
+      host: 'alpha',
+      service: 'frontend',
+    },
+  ]
+
+  const dataSource: InfluxExplorerDataSource = {
+    ping: vi.fn<() => Promise<InfluxPingResult>>().mockResolvedValue({
+      status: 'pass',
+      name: 'influxdb',
+      version: '2.7.0',
+    }),
+    listBuckets: vi.fn().mockResolvedValue([
+      {
+        id: 'bucket-1',
+        name: 'demo-metrics',
+        retentionSeconds: null,
+      },
+    ]),
+    listMeasurements: vi.fn().mockResolvedValue(['system', 'memory']),
+    listFieldKeys: vi.fn((request) =>
+      Promise.resolve(
+        request.measurement === 'memory'
+          ? ['used_percent']
+          : ['usage_user', 'usage_system'],
+      ),
+    ),
+    listTagKeys: vi.fn((request) =>
+      Promise.resolve(
+        request.measurement === 'memory'
+          ? ['host', 'service']
+          : ['host', 'region'],
+      ),
+    ),
+    listTagValues: vi.fn((request) =>
+      Promise.resolve(
+        request.tagKey === 'host'
+          ? request.measurement === 'memory'
+            ? ['alpha', 'gamma']
+            : ['alpha', 'beta']
+          : request.tagKey === 'region'
+            ? ['ap-northeast-2']
+            : ['frontend'],
+      ),
+    ),
+    queryRows: vi.fn<() => Promise<InfluxRow[]>>().mockResolvedValue(rows),
+  }
+
+  return dataSource
+}
+
 describe('useInfluxWorkbench', () => {
   beforeEach(() => {
     if (
@@ -141,6 +206,7 @@ describe('useInfluxWorkbench', () => {
 
     expect(workbench.selectedBucket.value).toBe('demo-metrics')
     expect(workbench.selectedMeasurement.value).toBe('system')
+    expect(workbench.selectedMeasurements.value).toEqual(['system'])
     expect(workbench.selectedFields.value).toEqual(['usage_user'])
     expect(workbench.tagKeys.value).toEqual(['host', 'region'])
     expect(workbench.generatedFlux.value).toContain(
@@ -368,5 +434,49 @@ panels:
     expect(schema.fields).toEqual(['celsius'])
     expect(schema.tagKeys).toEqual(['sensor'])
     expect(schema.tagValuesByKey.sensor).toEqual(['sensor-a', 'sensor-b'])
+  })
+
+  it('unions fields, tags, and tag values across multiple selected measurements', async () => {
+    const dataSource = createMultiMeasurementUnionDataSource()
+    const workbench = useInfluxWorkbench({
+      createDataSource: () => dataSource,
+    })
+
+    await workbench.connect()
+    await workbench.toggleMeasurement('memory')
+
+    expect(workbench.selectedMeasurements.value).toEqual(['system', 'memory'])
+    expect(workbench.selectedMeasurement.value).toBe('memory')
+    expect(workbench.fieldKeys.value).toEqual([
+      'usage_user',
+      'usage_system',
+      'used_percent',
+    ])
+    expect(workbench.tagKeys.value).toEqual(['host', 'region', 'service'])
+
+    await workbench.addTagFilter()
+
+    expect(workbench.tagFilters.value[0]?.tagKey).toBe('host')
+    expect(workbench.tagValueOptions.value.host).toEqual([
+      'alpha',
+      'beta',
+      'gamma',
+    ])
+    expect(workbench.generatedFlux.value).toContain(
+      'r._measurement == "system" or r._measurement == "memory"',
+    )
+
+    const schema = await workbench.resolveFluxAutocompleteSchema({
+      bucket: 'demo-metrics',
+      tagKey: 'host',
+    })
+
+    expect(schema.fields).toEqual([
+      'usage_user',
+      'usage_system',
+      'used_percent',
+    ])
+    expect(schema.tagKeys).toEqual(['host', 'region', 'service'])
+    expect(schema.tagValuesByKey.host).toEqual(['alpha', 'beta', 'gamma'])
   })
 })

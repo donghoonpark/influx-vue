@@ -26,6 +26,7 @@ describe('dashboard helpers', () => {
           query: {
             bucket: 'demo-metrics',
             measurement: 'system',
+            measurements: ['memory', 'system'],
             fields: ['usage_user'],
             rangePreset: 'last_24h',
             customStart: '',
@@ -45,6 +46,8 @@ describe('dashboard helpers', () => {
     expect(parsed.name).toBe('Operations overview')
     expect(parsed.columns).toBe(3)
     expect(parsed.panels).toHaveLength(1)
+    expect(parsed.panels[0]?.query.measurements).toEqual(['memory', 'system'])
+    expect(parsed.panels[0]?.query.measurement).toBe('memory')
     expect(parsed.panels[0]?.query.fields).toEqual(['usage_user'])
     expect(parsed.panels[0]?.query.tagFilters).toEqual([
       { tagKey: 'host', values: ['alpha'] },
@@ -60,6 +63,7 @@ describe('dashboard helpers', () => {
       query: {
         bucket: 'demo-metrics',
         measurement: 'system',
+        measurements: ['system'],
         fields: ['usage_user'],
         rangePreset: 'last_24h',
         customStart: '',
@@ -113,6 +117,32 @@ panels:
     expect(buildDashboardPanelFlux(parsed.panels[0]!)).not.toContain(
       'aggregateWindow',
     )
+  })
+
+  it('normalizes legacy single-measurement yaml into the multi-measurement model', () => {
+    const parsed = parseDashboardYaml(`
+name: Legacy dashboard
+panels:
+  - id: legacy-panel
+    title: Legacy panel
+    visualization: chart
+    queryMode: builder
+    query:
+      bucket: demo-metrics
+      measurement: system
+      fields:
+        - usage_user
+      rangePreset: last_24h
+      customStart: ""
+      customStop: ""
+      aggregateWindow: 15m
+      aggregateFunction: mean
+      limit: 2000
+      tagFilters: []
+`)
+
+    expect(parsed.panels[0]?.query.measurement).toBe('system')
+    expect(parsed.panels[0]?.query.measurements).toEqual(['system'])
   })
 
   it('serializes and parses dashboard with connection', () => {

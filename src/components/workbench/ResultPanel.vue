@@ -23,8 +23,8 @@ const resultTab = ref<'chart' | 'table' | 'yaml'>('chart')
 
 const currentDashboardDefinition = computed(() => {
   const currentPanel = props.workbench.createCurrentPanelSnapshot({
-    title: props.workbench.selectedMeasurement.value
-      ? `${props.workbench.selectedMeasurement.value} preview`
+    title: props.workbench.selectedMeasurementLabel.value
+      ? `${props.workbench.selectedMeasurementLabel.value} preview`
       : 'Current selection',
     visualization: 'split',
   })

@@ -66,6 +66,7 @@ describe('Influx explorer integration', () => {
     const flux = buildFluxQuery({
       bucket: harness.config.bucket ?? 'demo-metrics',
       measurement: 'system',
+      measurements: ['system'],
       fields: ['usage_user', 'usage_system'],
       rangePreset: 'last_30d',
       customStart: '',
@@ -82,5 +83,30 @@ describe('Influx explorer integration', () => {
     expect(rows.every((row) => row.host === 'alpha')).toBe(true)
     expect(rows.some((row) => row._field === 'usage_user')).toBe(true)
     expect(rows.some((row) => row._field === 'usage_system')).toBe(true)
+  })
+
+  it('runs multi-measurement Flux against the container', async () => {
+    const flux = buildFluxQuery({
+      bucket: harness.config.bucket ?? 'demo-metrics',
+      measurement: 'system',
+      measurements: ['system', 'memory'],
+      fields: ['usage_user', 'used_percent'],
+      rangePreset: 'last_30d',
+      customStart: '',
+      customStop: '',
+      aggregateWindow: '1h',
+      aggregateFunction: 'mean',
+      limit: 2000,
+      tagFilters: [{ tagKey: 'host', values: ['alpha'] }],
+    })
+
+    const rows = await harness.dataSource.queryRows(flux)
+
+    expect(rows.length).toBeGreaterThan(0)
+    expect(rows.every((row) => row.host === 'alpha')).toBe(true)
+    expect(rows.some((row) => row._measurement === 'system')).toBe(true)
+    expect(rows.some((row) => row._measurement === 'memory')).toBe(true)
+    expect(rows.some((row) => row._field === 'usage_user')).toBe(true)
+    expect(rows.some((row) => row._field === 'used_percent')).toBe(true)
   })
 })

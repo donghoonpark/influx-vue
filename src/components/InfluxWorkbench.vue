@@ -219,9 +219,9 @@ defineExpose<InfluxWorkbenchExposed>({
                 }}</strong>
               </div>
               <div class="stat-row">
-                <span>Measurement</span>
+                <span>Measurements</span>
                 <strong>{{
-                  workbench.selectedMeasurement.value || 'pending'
+                  workbench.selectedMeasurementLabel.value || 'pending'
                 }}</strong>
               </div>
             </div>

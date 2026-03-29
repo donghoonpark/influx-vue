@@ -132,6 +132,25 @@ function intersectSelections(values: string[], allowed: string[]): string[] {
   return values.filter((value) => allowed.includes(value))
 }
 
+function uniqueStringsInOrder(values: string[]): string[] {
+  const result: string[] = []
+
+  values
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      if (!result.includes(value)) {
+        result.push(value)
+      }
+    })
+
+  return result
+}
+
+function unionStringsInOrder(values: string[][]): string[] {
+  return uniqueStringsInOrder(values.flat())
+}
+
 function snapshotConnection(
   connection: InfluxConnectionConfig,
 ): InfluxConnectionConfig {
@@ -226,6 +245,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
   const selectedBucket = ref(connection.bucket ?? '')
   const selectedMeasurement = ref('')
+  const selectedMeasurements = ref<string[]>([])
   const selectedFields = ref<string[]>([])
   const tagFilters = ref<TagFilter[]>([])
 
@@ -253,11 +273,22 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
   const hasConnection = computed(() => dataSource.value !== null)
   const summary = computed(() => summarizeRows(rows.value))
+  const selectedMeasurementLabel = computed(() => {
+    if (selectedMeasurements.value.length === 0) {
+      return ''
+    }
+
+    if (selectedMeasurements.value.length === 1) {
+      return selectedMeasurements.value[0]
+    }
+
+    return `${selectedMeasurements.value[0]} +${selectedMeasurements.value.length - 1}`
+  })
 
   const generatedFlux = computed(() => {
     if (
       !selectedBucket.value ||
-      !selectedMeasurement.value ||
+      selectedMeasurements.value.length === 0 ||
       selectedFields.value.length === 0
     ) {
       return ''
@@ -267,6 +298,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       return buildFluxQuery({
         bucket: selectedBucket.value,
         measurement: selectedMeasurement.value,
+        measurements: selectedMeasurements.value,
         fields: selectedFields.value,
         rangePreset: rangePreset.value,
         customStart: customStart.value,
@@ -299,7 +331,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const hasExplorerSelection = computed(
     () =>
       Boolean(selectedBucket.value) &&
-      Boolean(selectedMeasurement.value) &&
+      selectedMeasurements.value.length > 0 &&
       selectedFields.value.length > 0,
   )
 
@@ -395,12 +427,28 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     )
   }
 
+  function setSelectedMeasurements(
+    nextMeasurements: string[],
+    preferredMeasurement = '',
+  ) {
+    const normalizedMeasurements = uniqueStringsInOrder(nextMeasurements)
+
+    selectedMeasurements.value = normalizedMeasurements
+    selectedMeasurement.value =
+      normalizedMeasurements.find(
+        (measurement) => measurement === preferredMeasurement,
+      ) ??
+      normalizedMeasurements[0] ??
+      ''
+  }
+
   function clearMeasurementState() {
     measurements.value = []
     fieldKeys.value = []
     tagKeys.value = []
     tagValueOptions.value = {}
     selectedMeasurement.value = ''
+    selectedMeasurements.value = []
     selectedFields.value = []
     tagFilters.value = []
   }
@@ -462,6 +510,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     return {
       bucket: selectedBucket.value,
       measurement: selectedMeasurement.value,
+      measurements: [...selectedMeasurements.value],
       fields: [...selectedFields.value],
       rangePreset: rangePreset.value,
       customStart: customStart.value,
@@ -473,6 +522,42 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         tagKey: filter.tagKey,
         values: [...filter.values],
       })),
+    }
+  }
+
+  async function ensureCombinedMeasurementSchema(
+    bucketName: string,
+    nextMeasurements: string[],
+  ): Promise<CachedMeasurementSchema> {
+    const resolvedMeasurements = uniqueStringsInOrder(nextMeasurements)
+
+    if (!bucketName || resolvedMeasurements.length === 0) {
+      return {
+        fields: [],
+        tagKeys: [],
+        tagValuesByKey: {},
+      }
+    }
+
+    const schemas = await Promise.all(
+      resolvedMeasurements.map((measurement) =>
+        ensureMeasurementSchema(bucketName, measurement),
+      ),
+    )
+
+    return {
+      fields: unionStringsInOrder(schemas.map((schema) => schema.fields)),
+      tagKeys: unionStringsInOrder(schemas.map((schema) => schema.tagKeys)),
+      tagValuesByKey: Object.fromEntries(
+        unionStringsInOrder(schemas.map((schema) => schema.tagKeys)).map(
+          (tagKey) => [
+            tagKey,
+            unionStringsInOrder(
+              schemas.map((schema) => schema.tagValuesByKey[tagKey] ?? []),
+            ),
+          ],
+        ),
+      ),
     }
   }
 
@@ -572,40 +657,63 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
   function syncMeasurementStateFromCache(
     bucketName: string,
-    measurement: string,
+    nextMeasurements: string[],
     options: {
       preserveSelectedFields?: boolean
       preserveTagFilters?: boolean
     } = {},
   ) {
-    const cachedSchema = readMeasurementSchema(bucketName, measurement)
+    const selectedSchema = uniqueStringsInOrder(nextMeasurements).map(
+      (measurement) => readMeasurementSchema(bucketName, measurement),
+    )
 
-    fieldKeys.value = [...cachedSchema.fields]
+    const combinedFields = unionStringsInOrder(
+      selectedSchema.map((schema) => schema.fields),
+    )
+    const combinedTagKeys = unionStringsInOrder(
+      selectedSchema.map((schema) => schema.tagKeys),
+    )
+    const combinedTagValueOptions = Object.fromEntries(
+      combinedTagKeys.map((tagKey) => [
+        tagKey,
+        unionStringsInOrder(
+          selectedSchema.map((schema) => schema.tagValuesByKey[tagKey] ?? []),
+        ),
+      ]),
+    )
+
+    fieldKeys.value = combinedFields
     selectedFields.value = options.preserveSelectedFields
-      ? intersectSelections(selectedFields.value, cachedSchema.fields)
-      : [...cachedSchema.fields]
-    if (selectedFields.value.length === 0 && cachedSchema.fields.length > 0) {
-      selectedFields.value = [cachedSchema.fields[0]]
+      ? intersectSelections(selectedFields.value, combinedFields)
+      : [...combinedFields]
+    if (selectedFields.value.length === 0 && combinedFields.length > 0) {
+      selectedFields.value = [combinedFields[0]]
     }
 
-    tagKeys.value = [...cachedSchema.tagKeys]
+    tagKeys.value = combinedTagKeys
     tagFilters.value = options.preserveTagFilters
       ? tagFilters.value.filter((filter) =>
-          cachedSchema.tagKeys.includes(filter.tagKey),
+          combinedTagKeys.includes(filter.tagKey),
         )
       : []
-    tagValueOptions.value = { ...cachedSchema.tagValuesByKey }
+    tagValueOptions.value = combinedTagValueOptions
   }
 
   async function loadTagValues(tagKey: string) {
-    if (!selectedBucket.value || !selectedMeasurement.value || !tagKey) {
+    if (
+      !selectedBucket.value ||
+      selectedMeasurements.value.length === 0 ||
+      !tagKey
+    ) {
       return
     }
 
-    const values = await ensureTagValues(
-      selectedBucket.value,
-      selectedMeasurement.value,
-      tagKey,
+    const values = unionStringsInOrder(
+      await Promise.all(
+        selectedMeasurements.value.map((measurement) =>
+          ensureTagValues(selectedBucket.value, measurement, tagKey),
+        ),
+      ),
     )
 
     tagValueOptions.value = {
@@ -614,8 +722,28 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     }
   }
 
-  async function hydrateMeasurement(measurement: string) {
-    if (!selectedBucket.value || !measurement) {
+  async function hydrateMeasurements(
+    nextMeasurements: string[],
+    preferredMeasurement = '',
+  ) {
+    if (!selectedBucket.value) {
+      return
+    }
+
+    const resolvedMeasurements = uniqueStringsInOrder(nextMeasurements)
+
+    setSelectedMeasurements(resolvedMeasurements, preferredMeasurement)
+
+    if (resolvedMeasurements.length === 0) {
+      fieldKeys.value = []
+      tagKeys.value = []
+      tagValueOptions.value = {}
+      selectedFields.value = []
+      tagFilters.value = []
+      clearResults()
+      if (!rawFlux.value.trim()) {
+        rawFlux.value = ''
+      }
       return
     }
 
@@ -623,11 +751,18 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     clearResults()
 
     try {
-      await ensureMeasurementSchema(selectedBucket.value, measurement)
-      syncMeasurementStateFromCache(selectedBucket.value, measurement, {
-        preserveSelectedFields: true,
-        preserveTagFilters: true,
-      })
+      await ensureCombinedMeasurementSchema(
+        selectedBucket.value,
+        resolvedMeasurements,
+      )
+      syncMeasurementStateFromCache(
+        selectedBucket.value,
+        resolvedMeasurements,
+        {
+          preserveSelectedFields: true,
+          preserveTagFilters: true,
+        },
+      )
 
       if (!rawFlux.value.trim()) {
         rawFlux.value = generatedFlux.value
@@ -638,17 +773,30 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   }
 
   async function selectMeasurement(measurement: string) {
-    selectedMeasurement.value = measurement
-    await hydrateMeasurement(measurement)
+    await hydrateMeasurements([measurement], measurement)
   }
 
-  async function hydrateBucket(bucketName: string) {
+  async function toggleMeasurement(measurement: string) {
+    const nextMeasurements = selectedMeasurements.value.includes(measurement)
+      ? selectedMeasurements.value.filter((value) => value !== measurement)
+      : [...selectedMeasurements.value, measurement]
+
+    await hydrateMeasurements(nextMeasurements, measurement)
+  }
+
+  async function hydrateBucket(
+    bucketName: string,
+    options: { preserveMeasurements?: boolean } = {},
+  ) {
     if (!dataSource.value || !bucketName) {
       clearMeasurementState()
       return
     }
 
     isSchemaLoading.value = true
+    const previousMeasurements = options.preserveMeasurements
+      ? [...selectedMeasurements.value]
+      : []
     clearMeasurementState()
     clearResults()
 
@@ -656,11 +804,16 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       const bucketMeasurements = await ensureBucketMeasurements(bucketName)
 
       measurements.value = bucketMeasurements
-      const nextMeasurement = bucketMeasurements[0] ?? ''
-      selectedMeasurement.value = nextMeasurement
+      const nextMeasurements = options.preserveMeasurements
+        ? intersectSelections(previousMeasurements, bucketMeasurements)
+        : []
+      const fallbackMeasurement =
+        nextMeasurements[0] ?? bucketMeasurements[0] ?? ''
 
-      if (nextMeasurement) {
-        await hydrateMeasurement(nextMeasurement)
+      if (nextMeasurements.length > 0) {
+        await hydrateMeasurements(nextMeasurements, nextMeasurements[0])
+      } else if (fallbackMeasurement) {
+        await hydrateMeasurements([fallbackMeasurement], fallbackMeasurement)
       }
     } finally {
       isSchemaLoading.value = false
@@ -676,14 +829,14 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     const hasRequiredCredentials = isPasswordAuth
       ? Boolean(
           connection.url.trim() &&
-            connection.org.trim() &&
-            (connection.token.trim() ||
-              (connection.username?.trim() && connection.password)),
+          connection.org.trim() &&
+          (connection.token.trim() ||
+            (connection.username?.trim() && connection.password)),
         )
       : Boolean(
           connection.url.trim() &&
-            connection.org.trim() &&
-            connection.token.trim(),
+          connection.org.trim() &&
+          connection.token.trim(),
         )
 
     if (!hasRequiredCredentials) {
@@ -711,9 +864,8 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       let authenticatedConnection: InfluxConnectionConfig
 
       try {
-        authenticatedConnection = await authenticateConnection(
-          requestedConnection,
-        )
+        authenticatedConnection =
+          await authenticateConnection(requestedConnection)
       } catch (error) {
         setConnectionFailure('auth', error, requestedConnection)
         return false
@@ -815,7 +967,9 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       return
     }
 
-    await hydrateBucket(selectedBucket.value)
+    await hydrateBucket(selectedBucket.value, {
+      preserveMeasurements: true,
+    })
   }
 
   async function addTagFilter() {
@@ -889,7 +1043,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       status.value = createStatusMessage(
         'warning',
         'Query is incomplete',
-        'Select a bucket, measurement, and field before running a query.',
+        'Select a bucket, at least one measurement, and a field before running a query.',
       )
       return false
     }
@@ -935,8 +1089,11 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     tagKey?: string
   }): Promise<FluxAutocompleteSchema> {
     const bucketName = input.bucket?.trim() || selectedBucket.value
-    const measurementName =
-      input.measurement?.trim() || selectedMeasurement.value
+    const selectedMeasurementNames = input.measurement?.trim()
+      ? [input.measurement.trim()]
+      : bucketName === selectedBucket.value
+        ? [...selectedMeasurements.value]
+        : []
     const bucketNames = buckets.value.map((bucket) => bucket.name)
 
     let nextMeasurements =
@@ -948,38 +1105,40 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       nextMeasurements = await ensureBucketMeasurements(bucketName)
     }
 
-    let nextFields =
+    const isSelectedMeasurementContext =
       bucketName === selectedBucket.value &&
-      measurementName === selectedMeasurement.value
-        ? [...fieldKeys.value]
-        : []
-    let nextTagKeys =
-      bucketName === selectedBucket.value &&
-      measurementName === selectedMeasurement.value
-        ? [...tagKeys.value]
-        : []
-    let nextTagValuesByKey =
-      bucketName === selectedBucket.value &&
-      measurementName === selectedMeasurement.value
-        ? { ...tagValueOptions.value }
-        : {}
+      selectedMeasurementNames.length === selectedMeasurements.value.length &&
+      selectedMeasurementNames.every((measurement, index) => {
+        return measurement === selectedMeasurements.value[index]
+      })
 
-    if (dataSource.value && bucketName && measurementName) {
-      const cachedSchema = await ensureMeasurementSchema(
+    let nextFields = isSelectedMeasurementContext ? [...fieldKeys.value] : []
+    let nextTagKeys = isSelectedMeasurementContext ? [...tagKeys.value] : []
+    let nextTagValuesByKey = isSelectedMeasurementContext
+      ? { ...tagValueOptions.value }
+      : {}
+
+    if (dataSource.value && bucketName && selectedMeasurementNames.length > 0) {
+      const cachedSchema = await ensureCombinedMeasurementSchema(
         bucketName,
-        measurementName,
+        selectedMeasurementNames,
       )
       nextFields = [...cachedSchema.fields]
       nextTagKeys = [...cachedSchema.tagKeys]
       nextTagValuesByKey = { ...cachedSchema.tagValuesByKey }
 
-      if (input.tagKey && !nextTagValuesByKey[input.tagKey]) {
+      if (
+        input.tagKey &&
+        (nextTagValuesByKey[input.tagKey]?.length ?? 0) === 0
+      ) {
         nextTagValuesByKey = {
           ...nextTagValuesByKey,
-          [input.tagKey]: await ensureTagValues(
-            bucketName,
-            measurementName,
-            input.tagKey,
+          [input.tagKey]: unionStringsInOrder(
+            await Promise.all(
+              selectedMeasurementNames.map((measurement) =>
+                ensureTagValues(bucketName, measurement, input.tagKey!),
+              ),
+            ),
           ),
         }
       }
@@ -1024,7 +1183,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       status.value = createStatusMessage(
         'warning',
         'Panel is incomplete',
-        'Pick a bucket, measurement, and at least one field before saving a panel.',
+        'Pick a bucket, at least one measurement, and at least one field before saving a panel.',
       )
       return null
     }
@@ -1212,14 +1371,27 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       connection.bucket = panel.query.bucket
     }
 
-    if (dataSource.value && panel.query.measurement) {
-      if (measurements.value.includes(panel.query.measurement)) {
-        await selectMeasurement(panel.query.measurement)
+    const panelMeasurements = uniqueStringsInOrder([
+      ...(panel.query.measurements ?? []),
+      panel.query.measurement,
+    ])
+
+    if (dataSource.value && panelMeasurements.length > 0) {
+      const availableMeasurements = intersectSelections(
+        panelMeasurements,
+        measurements.value,
+      )
+
+      if (availableMeasurements.length > 0) {
+        await hydrateMeasurements(
+          availableMeasurements,
+          panel.query.measurement || availableMeasurements[0],
+        )
       } else {
-        selectedMeasurement.value = panel.query.measurement
+        setSelectedMeasurements(panelMeasurements, panel.query.measurement)
       }
     } else {
-      selectedMeasurement.value = panel.query.measurement
+      setSelectedMeasurements(panelMeasurements, panel.query.measurement)
     }
 
     selectedFields.value = [...panel.query.fields]
@@ -1264,6 +1436,8 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     tagValueOptions,
     selectedBucket,
     selectedMeasurement,
+    selectedMeasurementLabel,
+    selectedMeasurements,
     selectedFields,
     tagFilters,
     queryMode,
@@ -1299,6 +1473,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     disconnect,
     selectBucket,
     selectMeasurement,
+    toggleMeasurement,
     refreshSchema,
     addTagFilter,
     updateTagFilterKey,

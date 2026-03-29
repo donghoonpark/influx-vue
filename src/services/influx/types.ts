@@ -94,6 +94,7 @@ export type RangePresetKey =
 export interface QueryBuilderState {
   bucket: string
   measurement: string
+  measurements?: string[]
   fields: string[]
   rangePreset: RangePresetKey
   customStart: string

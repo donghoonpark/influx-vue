@@ -124,8 +124,8 @@ function updateSelectedFields(value: Array<string | number> | null) {
   props.workbench.selectedFields.value = (value ?? []).map(String)
 }
 
-function updateSelectedMeasurement(measurement: string) {
-  void props.workbench.selectMeasurement(measurement)
+function toggleSelectedMeasurement(measurement: string) {
+  void props.workbench.toggleMeasurement(measurement)
 }
 
 function getTagKeyOptions(_filter: TagFilter, index: number) {
@@ -327,7 +327,7 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
         </ExplorerStagePanel>
 
         <ExplorerStagePanel
-          title="Measurement"
+          title="Measurements"
           :count="workbench.measurements.value.length"
           count-type="info"
         >
@@ -341,9 +341,10 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
                 :key="measurement"
                 class="selection-item"
                 :class="{
-                  active: measurement === workbench.selectedMeasurement.value,
+                  active:
+                    workbench.selectedMeasurements.value.includes(measurement),
                 }"
-                @click="updateSelectedMeasurement(measurement)"
+                @click="toggleSelectedMeasurement(measurement)"
               >
                 <span class="item-title">{{ measurement }}</span>
               </button>
@@ -377,7 +378,10 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
                 </label>
               </div>
             </NCheckboxGroup>
-            <NEmpty v-else description="Select a measurement to load fields." />
+            <NEmpty
+              v-else
+              description="Select one or more measurements to load fields."
+            />
           </template>
         </ExplorerStagePanel>
 

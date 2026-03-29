@@ -7,6 +7,7 @@ describe('buildFluxQuery', () => {
     const flux = buildFluxQuery({
       bucket: 'demo-metrics',
       measurement: 'system',
+      measurements: ['system'],
       fields: ['usage_user', 'usage_system'],
       rangePreset: 'last_24h',
       customStart: '',
@@ -36,6 +37,7 @@ describe('buildFluxQuery', () => {
     const flux = buildFluxQuery({
       bucket: 'demo-metrics',
       measurement: 'memory',
+      measurements: ['memory'],
       fields: ['used_percent'],
       rangePreset: 'custom',
       customStart: '2026-03-26T10:15',
@@ -57,6 +59,7 @@ describe('buildFluxQuery', () => {
     const flux = buildFluxQuery({
       bucket: 'demo-metrics',
       measurement: 'system',
+      measurements: ['system'],
       fields: ['usage_user'],
       rangePreset: 'last_1h',
       customStart: '',
@@ -69,5 +72,25 @@ describe('buildFluxQuery', () => {
 
     expect(flux).not.toContain('aggregateWindow')
     expect(flux).toContain('|> sort(columns: ["_time"])')
+  })
+
+  it('builds a measurement union filter when multiple measurements are selected', () => {
+    const flux = buildFluxQuery({
+      bucket: 'demo-metrics',
+      measurement: 'memory',
+      measurements: ['system', 'memory'],
+      fields: ['usage_user', 'used_percent'],
+      rangePreset: 'last_6h',
+      customStart: '',
+      customStop: '',
+      aggregateWindow: '1m',
+      aggregateFunction: 'mean',
+      limit: 1000,
+      tagFilters: [],
+    })
+
+    expect(flux).toContain(
+      'r._measurement == "system" or r._measurement == "memory"',
+    )
   })
 })

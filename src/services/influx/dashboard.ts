@@ -134,12 +134,46 @@ function createPanelId(title: string): string {
   return `${prefix}-${Math.random().toString(16).slice(2, 8)}`
 }
 
+function resolveQueryMeasurements(state: QueryBuilderState): string[] {
+  const measurements: string[] = []
+
+  ;[...(state.measurements ?? []), state.measurement]
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .forEach((value) => {
+      if (!measurements.includes(value)) {
+        measurements.push(value)
+      }
+    })
+
+  return measurements
+}
+
+function primaryMeasurementLabel(state: QueryBuilderState): string {
+  return resolveQueryMeasurements(state)[0] ?? ''
+}
+
+function measurementTitleLabel(state: QueryBuilderState): string {
+  const measurements = resolveQueryMeasurements(state)
+
+  if (measurements.length === 0) {
+    return 'measurement'
+  }
+
+  if (measurements.length === 1) {
+    return measurements[0]
+  }
+
+  return `${measurements[0]} +${measurements.length - 1}`
+}
+
 export function cloneQueryBuilderState(
   state: QueryBuilderState,
 ): QueryBuilderState {
   return {
     bucket: state.bucket,
-    measurement: state.measurement,
+    measurement: primaryMeasurementLabel(state),
+    measurements: resolveQueryMeasurements(state),
     fields: [...state.fields],
     rangePreset: state.rangePreset,
     customStart: state.customStart,
@@ -156,10 +190,22 @@ export function cloneQueryBuilderState(
 
 function normalizeQueryBuilderState(value: unknown): QueryBuilderState {
   const record = isRecord(value) ? value : {}
+  const measurements = toStringArray(record.measurements)
+  const measurement =
+    String(record.measurement ?? '').trim() || measurements[0] || ''
 
   return {
     bucket: String(record.bucket ?? '').trim(),
-    measurement: String(record.measurement ?? '').trim(),
+    measurement,
+    measurements:
+      measurements.length > 0
+        ? [measurement, ...measurements].filter(
+            (value, index, items) =>
+              Boolean(value) && items.indexOf(value) === index,
+          )
+        : measurement
+          ? [measurement]
+          : [],
     fields: toStringArray(record.fields),
     rangePreset: toRangePreset(record.rangePreset),
     customStart: String(record.customStart ?? ''),
@@ -177,7 +223,7 @@ export function createDashboardPanel(
   const query = cloneQueryBuilderState(input.query)
   const title =
     input.title?.trim() ||
-    `${query.measurement || 'measurement'} · ${query.fields.join(', ') || 'field'}`
+    `${measurementTitleLabel(query)} · ${query.fields.join(', ') || 'field'}`
 
   return {
     id: input.id?.trim() || createPanelId(title),
