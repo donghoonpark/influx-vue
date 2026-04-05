@@ -1,5 +1,5 @@
 import { use } from 'echarts/core'
-import { CustomChart, LineChart } from 'echarts/charts'
+import { CustomChart, LineChart, ScatterChart } from 'echarts/charts'
 import {
   DataZoomComponent,
   GridComponent,
@@ -11,6 +11,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 
 use([
   LineChart,
+  ScatterChart,
   CustomChart,
   CanvasRenderer,
   DataZoomComponent,
