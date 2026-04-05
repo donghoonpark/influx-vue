@@ -47,6 +47,12 @@ export interface InfluxDashboardDefinition {
   connection?: InfluxDashboardConnection
 }
 
+export interface InfluxDashboardTimeRangeOverride {
+  rangePreset: RangePresetKey
+  customStart: string
+  customStop: string
+}
+
 export interface CreateDashboardPanelInput {
   id?: string
   title?: string
@@ -444,10 +450,22 @@ export function parseDashboardYaml(source: string): InfluxDashboardDefinition {
 
 export function buildDashboardPanelFlux(
   panel: InfluxDashboardPanelDefinition,
+  options: {
+    timeRangeOverride?: InfluxDashboardTimeRangeOverride
+  } = {},
 ): string {
   if (panel.queryMode === 'raw') {
     return panel.rawFlux.trim() || buildFluxQuery(panel.query)
   }
 
-  return buildFluxQuery(panel.query)
+  const nextQuery = options.timeRangeOverride
+    ? {
+        ...panel.query,
+        rangePreset: options.timeRangeOverride.rangePreset,
+        customStart: options.timeRangeOverride.customStart,
+        customStop: options.timeRangeOverride.customStop,
+      }
+    : panel.query
+
+  return buildFluxQuery(nextQuery)
 }

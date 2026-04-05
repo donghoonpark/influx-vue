@@ -2,7 +2,18 @@
 import { computed, ref, shallowRef, watch } from 'vue'
 
 import { RefreshOutline } from '@vicons/ionicons5'
-import { NAlert, NButton, NCard, NEmpty, NFlex, NSpin, NTag, NText } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NDatePicker,
+  NEmpty,
+  NFlex,
+  NSelect,
+  NSpin,
+  NTag,
+  NText,
+} from 'naive-ui'
 
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
 import InfluxResultTable from '@/components/InfluxResultTable.vue'
@@ -12,16 +23,19 @@ import {
   parseDashboardYaml,
   type InfluxDashboardDefinition,
   type InfluxDashboardPanelDefinition,
+  type InfluxDashboardTimeRangeOverride,
 } from '@/services/influx/dashboard'
 import {
   authenticateBrowserInfluxConnection,
   createBrowserInfluxDataSource,
 } from '@/services/influx/browserDataSource'
+import { RANGE_PRESETS } from '@/services/influx/flux'
 import { summarizeRows } from '@/services/influx/resultTransforms'
 import type {
   InfluxConnectionConfig,
   InfluxExplorerDataSource,
   InfluxRow,
+  RangePresetKey,
   StatusMessage,
 } from '@/services/influx/types'
 import type {
@@ -32,6 +46,8 @@ import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
 const props = withDefaults(defineProps<InfluxDashboardProps>(), {
   autoRun: true,
+  showTimeControls: false,
+  initialTimeRangeOverride: undefined,
   connectionOverride: undefined,
   createDataSource: undefined,
   authenticateConnection: undefined,
@@ -51,10 +67,36 @@ const isConnecting = ref(false)
 const isRefreshing = ref(false)
 const yamlError = ref<string | null>(null)
 const status = ref<StatusMessage | null>(null)
+const timeRangeOverride = ref<InfluxDashboardTimeRangeOverride>({
+  rangePreset: 'last_24h',
+  customStart: '',
+  customStop: '',
+})
+const rangePresetOptions = RANGE_PRESETS.map((preset) => ({
+  label: preset.label,
+  value: preset.key,
+}))
 
 const dashboardGridStyle = computed(() => ({
   gridTemplateColumns: `repeat(${Math.max(definition.value.columns, 1)}, minmax(0, 1fr))`,
 }))
+const customRangeValue = computed<[number, number] | null>(() => {
+  if (
+    !timeRangeOverride.value.customStart.trim() ||
+    !timeRangeOverride.value.customStop.trim()
+  ) {
+    return null
+  }
+
+  const start = new Date(timeRangeOverride.value.customStart).getTime()
+  const stop = new Date(timeRangeOverride.value.customStop).getTime()
+
+  if (Number.isNaN(start) || Number.isNaN(stop)) {
+    return null
+  }
+
+  return [start, stop]
+})
 
 function clearPanelArtifacts() {
   rowsByPanelId.value = {}
@@ -68,6 +110,34 @@ function createStatusMessage(
   message: string,
 ): StatusMessage {
   return { type, title, message }
+}
+
+function normalizeTimeRangeOverride(
+  value?: Partial<InfluxDashboardTimeRangeOverride>,
+): InfluxDashboardTimeRangeOverride {
+  return {
+    rangePreset: (value?.rangePreset ?? 'last_24h') as RangePresetKey,
+    customStart: value?.customStart ?? '',
+    customStop: value?.customStop ?? '',
+  }
+}
+
+function deriveTimeRangeOverride(
+  dashboard: InfluxDashboardDefinition,
+): InfluxDashboardTimeRangeOverride {
+  const firstBuilderPanel = dashboard.panels.find(
+    (panel) => panel.queryMode === 'builder',
+  )
+
+  if (!firstBuilderPanel) {
+    return normalizeTimeRangeOverride(props.initialTimeRangeOverride)
+  }
+
+  return normalizeTimeRangeOverride({
+    rangePreset: firstBuilderPanel.query.rangePreset,
+    customStart: firstBuilderPanel.query.customStart,
+    customStop: firstBuilderPanel.query.customStop,
+  })
 }
 
 function resolveConnectionConfig(): InfluxConnectionConfig | null {
@@ -144,7 +214,13 @@ async function runPanel(panel: InfluxDashboardPanelDefinition): Promise<boolean>
   loadingPanelIds.value = [...new Set([...loadingPanelIds.value, panel.id])]
 
   try {
-    const nextRows = await dataSource.value.queryRows(buildDashboardPanelFlux(panel))
+    const nextRows = await dataSource.value.queryRows(
+      buildDashboardPanelFlux(panel, {
+        timeRangeOverride: props.showTimeControls
+          ? timeRangeOverride.value
+          : undefined,
+      }),
+    )
     rowsByPanelId.value = {
       ...rowsByPanelId.value,
       [panel.id]: nextRows,
@@ -213,6 +289,9 @@ async function syncDashboardDefinition() {
 
   try {
     definition.value = parseDashboardYaml(props.yaml)
+    timeRangeOverride.value = props.initialTimeRangeOverride
+      ? normalizeTimeRangeOverride(props.initialTimeRangeOverride)
+      : deriveTimeRangeOverride(definition.value)
   } catch (error) {
     dataSource.value = null
     definition.value = createDashboardDefinition()
@@ -254,8 +333,38 @@ function panelSummary(panelId: string) {
   return summarizeRows(rowsByPanelId.value[panelId] ?? [])
 }
 
+function updateRangePreset(value: string | number | null) {
+  timeRangeOverride.value = {
+    ...timeRangeOverride.value,
+    rangePreset: (value ?? 'last_24h') as RangePresetKey,
+  }
+}
+
+function updateCustomRange(value: [number, number] | null) {
+  if (!value) {
+    timeRangeOverride.value = {
+      ...timeRangeOverride.value,
+      customStart: '',
+      customStop: '',
+    }
+    return
+  }
+
+  timeRangeOverride.value = {
+    rangePreset: 'custom',
+    customStart: new Date(value[0]).toISOString(),
+    customStop: new Date(value[1]).toISOString(),
+  }
+}
+
 watch(
-  () => [props.yaml, props.connectionOverride] as const,
+  () =>
+    [
+      props.yaml,
+      props.connectionOverride,
+      props.initialTimeRangeOverride,
+      props.showTimeControls,
+    ] as const,
   async () => {
     await syncDashboardDefinition()
   },
@@ -266,6 +375,7 @@ defineExpose<InfluxDashboardExposed>({
   connect,
   refresh,
   getDefinition: () => definition.value,
+  getTimeRangeOverride: () => timeRangeOverride.value,
 })
 </script>
 
@@ -288,15 +398,38 @@ defineExpose<InfluxDashboardExposed>({
           </NText>
         </div>
 
-        <NButton
-          secondary
-          size="small"
-          :loading="isRefreshing || isConnecting"
-          :render-icon="renderNaiveIcon(RefreshOutline)"
-          @click="refresh()"
-        >
-          Refresh
-        </NButton>
+        <div class="dashboard-controls">
+          <div v-if="showTimeControls" class="time-controls">
+            <NSelect
+              size="small"
+              class="time-control"
+              :value="timeRangeOverride.rangePreset"
+              :options="rangePresetOptions"
+              @update:value="updateRangePreset"
+            />
+            <NDatePicker
+              v-if="timeRangeOverride.rangePreset === 'custom'"
+              clearable
+              size="small"
+              type="datetimerange"
+              class="time-control time-control--wide"
+              :value="customRangeValue"
+              @update:value="
+                (value) => updateCustomRange(value as [number, number] | null)
+              "
+            />
+          </div>
+
+          <NButton
+            secondary
+            size="small"
+            :loading="isRefreshing || isConnecting"
+            :render-icon="renderNaiveIcon(RefreshOutline)"
+            @click="refresh()"
+          >
+            Refresh
+          </NButton>
+        </div>
       </NFlex>
     </NCard>
 
@@ -424,6 +557,26 @@ defineExpose<InfluxDashboardExposed>({
   flex-wrap: wrap;
 }
 
+.dashboard-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.time-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.time-control {
+  width: 160px;
+}
+
+.time-control--wide {
+  width: 300px;
+}
+
 .dashboard-grid {
   display: grid;
   gap: 12px;
@@ -466,6 +619,17 @@ defineExpose<InfluxDashboardExposed>({
 }
 
 @media (max-width: 900px) {
+  .dashboard-controls,
+  .time-controls {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .time-control,
+  .time-control--wide {
+    width: 100%;
+  }
+
   .dashboard-grid {
     grid-template-columns: minmax(0, 1fr) !important;
   }

@@ -125,6 +125,49 @@ describe('dashboard helpers', () => {
     )
   })
 
+  it('applies dashboard time overrides only to builder panels', () => {
+    const builderPanel = createDashboardPanel({
+      title: 'Builder panel',
+      visualization: 'chart',
+      queryMode: 'builder',
+      rawFlux: '',
+      query: {
+        bucket: 'demo-metrics',
+        measurement: 'system',
+        measurements: ['system'],
+        fields: ['usage_user'],
+        rangePreset: 'last_24h',
+        customStart: '',
+        customStop: '',
+        aggregateWindow: '15m',
+        aggregateFunction: 'mean',
+        limit: 2000,
+        tagFilters: [],
+      },
+    })
+
+    const rawPanel = createDashboardPanel({
+      title: 'Raw panel',
+      visualization: 'table',
+      queryMode: 'raw',
+      rawFlux: 'from(bucket: "demo-metrics") |> range(start: -1h)',
+      query: builderPanel.query,
+    })
+
+    const override = {
+      rangePreset: 'last_6h' as const,
+      customStart: '',
+      customStop: '',
+    }
+
+    expect(
+      buildDashboardPanelFlux(builderPanel, { timeRangeOverride: override }),
+    ).toContain('|> range(start: -6h)')
+    expect(
+      buildDashboardPanelFlux(rawPanel, { timeRangeOverride: override }),
+    ).toBe('from(bucket: "demo-metrics") |> range(start: -1h)')
+  })
+
   it('accepts aggregate function none from dashboard yaml', () => {
     const parsed = parseDashboardYaml(`
 name: No aggregation

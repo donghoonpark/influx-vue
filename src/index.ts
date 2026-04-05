@@ -26,6 +26,7 @@ export type {
   InfluxDashboardConnection,
   InfluxDashboardDefinition,
   InfluxDashboardPanelDefinition,
+  InfluxDashboardTimeRangeOverride,
   InfluxPanelVisualization,
 } from '@/services/influx/dashboard'
 export type {

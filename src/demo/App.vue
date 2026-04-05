@@ -155,7 +155,7 @@ const demoDashboardYaml = computed(() =>
                   </NText>
                 </NAlert>
 
-                <InfluxDashboard :yaml="demoDashboardYaml" />
+                <InfluxDashboard :yaml="demoDashboardYaml" show-time-controls />
               </NTabPane>
             </NTabs>
           </NLayoutContent>
