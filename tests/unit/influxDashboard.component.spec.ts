@@ -23,6 +23,7 @@ function createMockDataSource(rows: InfluxRow[]): InfluxExplorerDataSource {
     listBuckets: vi.fn(),
     listMeasurements: vi.fn(),
     listFieldKeys: vi.fn(),
+    listFieldKinds: vi.fn(),
     listTagKeys: vi.fn(),
     listTagValues: vi.fn(),
     queryRows: vi.fn<() => Promise<InfluxRow[]>>().mockResolvedValue(rows),

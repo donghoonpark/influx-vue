@@ -86,7 +86,7 @@ const demoDashboardYaml = computed(() =>
         createDashboardPanel({
           id: 'sensor-temperature',
           title: 'Sensor Temperature',
-          visualization: 'split',
+          visualization: 'scatter',
           queryMode: 'builder',
           query: {
             bucket: 'edge-sensors',

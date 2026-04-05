@@ -44,6 +44,9 @@ function createSuccessfulDataSource() {
     listFieldKeys: vi
       .fn<() => Promise<string[]>>()
       .mockResolvedValue(['usage_user']),
+    listFieldKinds: vi
+      .fn<() => Promise<Record<string, 'number' | 'string' | 'boolean' | 'unknown'>>>()
+      .mockResolvedValue({ usage_user: 'number' }),
     listTagKeys: vi.fn<() => Promise<string[]>>().mockResolvedValue(['host']),
     listTagValues: vi
       .fn<() => Promise<string[]>>()
@@ -62,6 +65,10 @@ function createFailingDataSource() {
     listBuckets: vi.fn<() => Promise<InfluxBucket[]>>(),
     listMeasurements: vi.fn<() => Promise<string[]>>(),
     listFieldKeys: vi.fn<() => Promise<string[]>>(),
+    listFieldKinds:
+      vi.fn<
+        () => Promise<Record<string, 'number' | 'string' | 'boolean' | 'unknown'>>
+      >(),
     listTagKeys: vi.fn<() => Promise<string[]>>(),
     listTagValues: vi.fn<() => Promise<string[]>>(),
     queryRows: vi.fn<() => Promise<InfluxRow[]>>(),

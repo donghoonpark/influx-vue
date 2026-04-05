@@ -14,6 +14,7 @@ import type { InfluxRow } from '@/services/influx/types'
 
 const props = defineProps<{
   rows: InfluxRow[]
+  visualization?: 'line' | 'scatter'
 }>()
 
 const chartSeries = computed(() => rowsToChartSeries(props.rows))
@@ -57,13 +58,28 @@ const seriesOptions = computed(
   () =>
     [
       ...chartSeries.value.map((series) => ({
-        type: 'line' as const,
+        type:
+          props.visualization === 'scatter'
+            ? ('scatter' as const)
+            : ('line' as const),
         name: series.name,
-        showSymbol: false,
-        smooth: true,
-        lineStyle: {
-          width: 1.8,
-        },
+        showSymbol: props.visualization === 'scatter',
+        smooth: props.visualization !== 'scatter',
+        large: props.visualization === 'scatter',
+        largeThreshold: 2000,
+        symbolSize: props.visualization === 'scatter' ? 7 : 4,
+        lineStyle:
+          props.visualization === 'scatter'
+            ? undefined
+            : {
+                width: 1.8,
+              },
+        itemStyle:
+          props.visualization === 'scatter'
+            ? {
+                opacity: 0.88,
+              }
+            : undefined,
         emphasis: {
           focus: 'series' as const,
         },

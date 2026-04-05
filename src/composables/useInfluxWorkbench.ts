@@ -4,6 +4,7 @@ import {
   AGGREGATE_FUNCTIONS,
   buildFluxQuery,
   RANGE_PRESETS,
+  resolveAggregationPassthroughFields,
   SCHEMA_LOOKBACK,
 } from '@/services/influx/flux'
 import {
@@ -33,6 +34,7 @@ import type {
   InfluxConnectionConfig,
   InfluxConnectionFailure,
   InfluxExplorerDataSource,
+  InfluxFieldValueKind,
   InfluxPingResult,
   InfluxRow,
   QueryMode,
@@ -151,6 +153,36 @@ function unionStringsInOrder(values: string[][]): string[] {
   return uniqueStringsInOrder(values.flat())
 }
 
+function mergeFieldKinds(
+  values: InfluxFieldValueKind[],
+): InfluxFieldValueKind {
+  const normalizedKinds = uniqueStringsInOrder(values) as InfluxFieldValueKind[]
+
+  if (normalizedKinds.length === 1) {
+    return normalizedKinds[0]
+  }
+
+  return 'unknown'
+}
+
+function unionFieldKinds(
+  values: Record<string, InfluxFieldValueKind>[],
+): Record<string, InfluxFieldValueKind> {
+  const fieldNames = unionStringsInOrder(
+    values.map((fieldKinds) => Object.keys(fieldKinds)),
+  )
+
+  return Object.fromEntries(
+    fieldNames.map((fieldName) => {
+      const fieldKinds = values
+        .map((value) => value[fieldName])
+        .filter((value): value is InfluxFieldValueKind => Boolean(value))
+
+      return [fieldName, mergeFieldKinds(fieldKinds)]
+    }),
+  )
+}
+
 function snapshotConnection(
   connection: InfluxConnectionConfig,
 ): InfluxConnectionConfig {
@@ -190,6 +222,7 @@ function resolveLocalDemoConfig(): InfluxConnectionConfig {
 
 interface CachedMeasurementSchema {
   fields: string[]
+  fieldKinds: Record<string, InfluxFieldValueKind>
   tagKeys: string[]
   tagValuesByKey: Record<string, string[]>
 }
@@ -236,6 +269,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   const buckets = ref<InfluxBucket[]>([])
   const measurements = ref<string[]>([])
   const fieldKeys = ref<string[]>([])
+  const fieldKinds = ref<Record<string, InfluxFieldValueKind>>({})
   const tagKeys = ref<string[]>([])
   const tagValueOptions = ref<Record<string, string[]>>({})
   const bucketMeasurementsCache = ref<Record<string, string[]>>({})
@@ -284,6 +318,18 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
     return `${selectedMeasurements.value[0]} +${selectedMeasurements.value.length - 1}`
   })
+  const aggregationPassthroughFields = computed(() =>
+    resolveAggregationPassthroughFields(buildCurrentQueryState(), {
+      fieldKinds: fieldKinds.value,
+    }),
+  )
+  const shouldSerializeCurrentPanelAsRaw = computed(
+    () =>
+      queryMode.value === 'builder' &&
+      aggregationPassthroughFields.value.length > 0 &&
+      aggregateFunction.value !== 'none' &&
+      aggregateWindow.value.trim().length > 0,
+  )
 
   const generatedFlux = computed(() => {
     if (
@@ -307,6 +353,8 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
         aggregateFunction: aggregateFunction.value,
         limit: limit.value,
         tagFilters: tagFilters.value,
+      }, {
+        fieldKinds: fieldKinds.value,
       })
     } catch {
       return ''
@@ -393,12 +441,19 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     }
     const currentSchema = nextBucketSchemas[measurement] ?? {
       fields: [],
+      fieldKinds: {},
       tagKeys: [],
       tagValuesByKey: {},
     }
 
     nextBucketSchemas[measurement] = {
       fields: input.fields ? [...input.fields] : currentSchema.fields,
+      fieldKinds: input.fieldKinds
+        ? {
+            ...currentSchema.fieldKinds,
+            ...input.fieldKinds,
+          }
+        : currentSchema.fieldKinds,
       tagKeys: input.tagKeys ? [...input.tagKeys] : currentSchema.tagKeys,
       tagValuesByKey: input.tagValuesByKey
         ? {
@@ -421,6 +476,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     return (
       measurementSchemaCache.value[bucketName]?.[measurement] ?? {
         fields: [],
+        fieldKinds: {},
         tagKeys: [],
         tagValuesByKey: {},
       }
@@ -445,6 +501,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
   function clearMeasurementState() {
     measurements.value = []
     fieldKeys.value = []
+    fieldKinds.value = {}
     tagKeys.value = []
     tagValueOptions.value = {}
     selectedMeasurement.value = ''
@@ -534,6 +591,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     if (!bucketName || resolvedMeasurements.length === 0) {
       return {
         fields: [],
+        fieldKinds: {},
         tagKeys: [],
         tagValuesByKey: {},
       }
@@ -547,6 +605,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
     return {
       fields: unionStringsInOrder(schemas.map((schema) => schema.fields)),
+      fieldKinds: unionFieldKinds(schemas.map((schema) => schema.fieldKinds)),
       tagKeys: unionStringsInOrder(schemas.map((schema) => schema.tagKeys)),
       tagValuesByKey: Object.fromEntries(
         unionStringsInOrder(schemas.map((schema) => schema.tagKeys)).map(
@@ -593,18 +652,28 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     if (!dataSource.value || !bucketName || !measurement) {
       return {
         fields: [],
+        fieldKinds: {},
         tagKeys: [],
         tagValuesByKey: {},
       }
     }
 
     const cachedSchema = readMeasurementSchema(bucketName, measurement)
-    if (cachedSchema.fields.length > 0 || cachedSchema.tagKeys.length > 0) {
+    if (
+      cachedSchema.fields.length > 0 ||
+      cachedSchema.tagKeys.length > 0 ||
+      Object.keys(cachedSchema.fieldKinds).length > 0
+    ) {
       return cachedSchema
     }
 
-    const [fields, tags] = await Promise.all([
+    const [fields, fieldKinds, tags] = await Promise.all([
       dataSource.value.listFieldKeys({
+        bucket: bucketName,
+        measurement,
+        start: SCHEMA_LOOKBACK,
+      }),
+      dataSource.value.listFieldKinds({
         bucket: bucketName,
         measurement,
         start: SCHEMA_LOOKBACK,
@@ -618,6 +687,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
     cacheMeasurementSchema(bucketName, measurement, {
       fields,
+      fieldKinds,
       tagKeys: tags,
     })
 
@@ -670,6 +740,9 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     const combinedFields = unionStringsInOrder(
       selectedSchema.map((schema) => schema.fields),
     )
+    const combinedFieldKinds = unionFieldKinds(
+      selectedSchema.map((schema) => schema.fieldKinds),
+    )
     const combinedTagKeys = unionStringsInOrder(
       selectedSchema.map((schema) => schema.tagKeys),
     )
@@ -683,6 +756,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     )
 
     fieldKeys.value = combinedFields
+    fieldKinds.value = combinedFieldKinds
     selectedFields.value = options.preserveSelectedFields
       ? intersectSelections(selectedFields.value, combinedFields)
       : [...combinedFields]
@@ -736,6 +810,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
 
     if (resolvedMeasurements.length === 0) {
       fieldKeys.value = []
+      fieldKinds.value = {}
       tagKeys.value = []
       tagValueOptions.value = {}
       selectedFields.value = []
@@ -1163,13 +1238,20 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
       return null
     }
 
+    const nextQueryMode = shouldSerializeCurrentPanelAsRaw.value
+      ? 'raw'
+      : queryMode.value
+    const nextRawFlux = shouldSerializeCurrentPanelAsRaw.value
+      ? generatedFlux.value
+      : rawFlux.value
+
     return createDashboardPanel({
       title: input.title,
       description: input.description,
       visualization: input.visualization,
-      queryMode: queryMode.value,
+      queryMode: nextQueryMode,
       query: buildCurrentQueryState(),
-      rawFlux: rawFlux.value,
+      rawFlux: nextRawFlux,
     })
   }
 
@@ -1432,6 +1514,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     buckets,
     measurements,
     fieldKeys,
+    fieldKinds,
     tagKeys,
     tagValueOptions,
     selectedBucket,
@@ -1462,6 +1545,7 @@ export function useInfluxWorkbench(options: UseInfluxWorkbenchOptions = {}) {
     summary,
     generatedFlux,
     currentFlux,
+    aggregationPassthroughFields,
     hasConnection,
     hasExplorerSelection,
     canRunQuery,

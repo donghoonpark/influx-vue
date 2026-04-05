@@ -57,11 +57,16 @@ export interface InfluxTagValuesRequest extends InfluxMeasurementRequest {
   tagKey: string
 }
 
+export type InfluxFieldValueKind = 'number' | 'string' | 'boolean' | 'unknown'
+
 export interface InfluxExplorerDataSource {
   ping(): Promise<InfluxPingResult>
   listBuckets(): Promise<InfluxBucket[]>
   listMeasurements(request: InfluxSchemaRequest): Promise<string[]>
   listFieldKeys(request: InfluxMeasurementRequest): Promise<string[]>
+  listFieldKinds(
+    request: InfluxMeasurementRequest,
+  ): Promise<Record<string, InfluxFieldValueKind>>
   listTagKeys(request: InfluxMeasurementRequest): Promise<string[]>
   listTagValues(request: InfluxTagValuesRequest): Promise<string[]>
   queryRows(flux: string): Promise<InfluxRow[]>

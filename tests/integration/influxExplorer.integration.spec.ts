@@ -31,6 +31,11 @@ describe('Influx explorer integration', () => {
       measurement: 'system',
       start: SCHEMA_LOOKBACK,
     })
+    const fieldKinds = await harness.dataSource.listFieldKinds({
+      bucket: harness.config.bucket ?? 'demo-metrics',
+      measurement: 'system_event',
+      start: SCHEMA_LOOKBACK,
+    })
     const tags = await harness.dataSource.listTagKeys({
       bucket: harness.config.bucket ?? 'demo-metrics',
       measurement: 'system',
@@ -58,6 +63,7 @@ describe('Influx explorer integration', () => {
     expect(fields).toEqual(
       expect.arrayContaining(['usage_system', 'usage_user']),
     )
+    expect(fieldKinds.message).toBe('string')
     expect(tags).toEqual(expect.arrayContaining(['host', 'region']))
     expect(tagValues).toEqual(expect.arrayContaining(['alpha', 'beta']))
   })

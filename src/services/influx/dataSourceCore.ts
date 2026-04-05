@@ -1,4 +1,5 @@
 import {
+  buildFieldKindsFlux,
   buildFieldKeysFlux,
   buildMeasurementsFlux,
   buildTagKeysFlux,
@@ -8,6 +9,7 @@ import { extractValueList } from '@/services/influx/resultTransforms'
 import type {
   InfluxBucket,
   InfluxExplorerDataSource,
+  InfluxFieldValueKind,
   InfluxMeasurementRequest,
   InfluxPingResult,
   InfluxRow,
@@ -52,6 +54,32 @@ async function collectStringValues(
   return extractValueList(rows)
 }
 
+function inferFieldKinds(rows: InfluxRow[]): Record<string, InfluxFieldValueKind> {
+  return rows.reduce<Record<string, InfluxFieldValueKind>>((result, row) => {
+    if (!row._field) {
+      return result
+    }
+
+    if (typeof row._value === 'number') {
+      result[row._field] = 'number'
+      return result
+    }
+
+    if (typeof row._value === 'string') {
+      result[row._field] = 'string'
+      return result
+    }
+
+    if (typeof row._value === 'boolean') {
+      result[row._field] = 'boolean'
+      return result
+    }
+
+    result[row._field] = 'unknown'
+    return result
+  }, {})
+}
+
 export function createInfluxExplorerDataSource(
   transport: InfluxExplorerTransport,
 ): InfluxExplorerDataSource {
@@ -79,6 +107,13 @@ export function createInfluxExplorerDataSource(
         transport,
         buildFieldKeysFlux(request.bucket, request.measurement, request.start),
       )
+    },
+
+    async listFieldKinds(request: InfluxMeasurementRequest) {
+      const rows = await transport.collectRows(
+        buildFieldKindsFlux(request.bucket, request.measurement, request.start),
+      )
+      return inferFieldKinds(rows)
     },
 
     listTagKeys(request: InfluxMeasurementRequest) {

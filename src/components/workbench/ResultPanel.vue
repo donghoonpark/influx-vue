@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue'
 
 import { DocumentTextOutline } from '@vicons/ionicons5'
-import { NAlert, NButton, NFlex, NTabPane, NTabs, NTag } from 'naive-ui'
+import { NAlert, NButton, NFlex, NSelect, NTabPane, NTabs, NTag } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
@@ -12,6 +12,7 @@ import {
   createDashboardConnection,
   createDashboardDefinition,
   serializeDashboardToDisplayYaml,
+  type InfluxPanelVisualization,
 } from '@/services/influx/dashboard'
 import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
@@ -20,13 +21,27 @@ const props = defineProps<{
 }>()
 
 const resultTab = ref<'chart' | 'table' | 'yaml'>('chart')
+const panelVisualization = ref<InfluxPanelVisualization>('split')
+const panelVisualizationOptions = [
+  { label: 'Line chart', value: 'chart' },
+  { label: 'Scatter chart', value: 'scatter' },
+  { label: 'Table only', value: 'table' },
+  { label: 'Split view', value: 'split' },
+] satisfies Array<{ label: string; value: InfluxPanelVisualization }>
+const chartVisualization = computed(() =>
+  panelVisualization.value === 'scatter' ? 'scatter' : 'line',
+)
+
+function updatePanelVisualization(value: string | number | null) {
+  panelVisualization.value = (value ?? 'split') as InfluxPanelVisualization
+}
 
 const currentDashboardDefinition = computed(() => {
   const currentPanel = props.workbench.createCurrentPanelSnapshot({
     title: props.workbench.selectedMeasurementLabel.value
       ? `${props.workbench.selectedMeasurementLabel.value} preview`
       : 'Current selection',
-    visualization: 'split',
+    visualization: panelVisualization.value,
   })
 
   return createDashboardDefinition({
@@ -104,9 +119,23 @@ const resultNotice = computed(() => {
       {{ resultNotice.message }}
     </NAlert>
 
+    <div class="result-toolbar">
+      <NSelect
+        size="small"
+        class="visualization-select"
+        :value="panelVisualization"
+        :options="panelVisualizationOptions"
+        placeholder="Panel visualization"
+        @update:value="updatePanelVisualization"
+      />
+    </div>
+
     <NTabs v-model:value="resultTab" type="line" animated>
       <NTabPane name="chart" tab="Chart">
-        <InfluxResultChart :rows="workbench.rows.value" />
+        <InfluxResultChart
+          :rows="workbench.rows.value"
+          :visualization="chartVisualization"
+        />
       </NTabPane>
 
       <NTabPane name="table" tab="Table">
@@ -149,6 +178,15 @@ const resultNotice = computed(() => {
 
 .result-notice {
   margin-top: 2px;
+}
+
+.result-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.visualization-select {
+  width: 180px;
 }
 
 .yaml-shell {

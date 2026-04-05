@@ -42,6 +42,13 @@ function createMockDataSource() {
     listFieldKeys: vi
       .fn<() => Promise<string[]>>()
       .mockResolvedValue(['usage_user', 'usage_system']),
+    listFieldKinds:
+      vi.fn<
+        () => Promise<Record<string, 'number' | 'string' | 'boolean' | 'unknown'>>
+      >().mockResolvedValue({
+        usage_user: 'number',
+        usage_system: 'number',
+      }),
     listTagKeys: vi
       .fn<() => Promise<string[]>>()
       .mockResolvedValue(['host', 'region']),
@@ -62,6 +69,10 @@ function createPingFailureDataSource() {
     listBuckets: vi.fn<() => Promise<InfluxBucket[]>>(),
     listMeasurements: vi.fn<() => Promise<string[]>>(),
     listFieldKeys: vi.fn<() => Promise<string[]>>(),
+    listFieldKinds:
+      vi.fn<
+        () => Promise<Record<string, 'number' | 'string' | 'boolean' | 'unknown'>>
+      >(),
     listTagKeys: vi.fn<() => Promise<string[]>>(),
     listTagValues: vi.fn<() => Promise<string[]>>(),
     queryRows: vi.fn<() => Promise<InfluxRow[]>>(),
@@ -101,6 +112,13 @@ function createMultiBucketDataSource() {
         request.measurement === 'temperature'
           ? ['celsius']
           : ['usage_user', 'usage_system'],
+      ),
+    ),
+    listFieldKinds: vi.fn((request) =>
+      Promise.resolve(
+        request.measurement === 'temperature'
+          ? { celsius: 'number' }
+          : { usage_user: 'number', usage_system: 'number' },
       ),
     ),
     listTagKeys: vi.fn((request) =>
@@ -162,6 +180,13 @@ function createMultiMeasurementUnionDataSource() {
           : ['usage_user', 'usage_system'],
       ),
     ),
+    listFieldKinds: vi.fn((request) =>
+      Promise.resolve(
+        request.measurement === 'memory'
+          ? { used_percent: 'number' }
+          : { usage_user: 'number', usage_system: 'number' },
+      ),
+    ),
     listTagKeys: vi.fn((request) =>
       Promise.resolve(
         request.measurement === 'memory'
@@ -180,6 +205,50 @@ function createMultiMeasurementUnionDataSource() {
             : ['frontend'],
       ),
     ),
+    queryRows: vi.fn<() => Promise<InfluxRow[]>>().mockResolvedValue(rows),
+  }
+
+  return dataSource
+}
+
+function createMixedFieldTypeDataSource() {
+  const rows: InfluxRow[] = [
+    {
+      _time: '2026-03-26T00:00:00Z',
+      _measurement: 'system',
+      _field: 'usage_user',
+      _value: 42,
+      host: 'alpha',
+    },
+    {
+      _time: '2026-03-26T00:00:00Z',
+      _measurement: 'system',
+      _field: 'message',
+      _value: 'ok',
+      host: 'alpha',
+    },
+  ]
+
+  const dataSource: InfluxExplorerDataSource = {
+    ping: vi.fn<() => Promise<InfluxPingResult>>().mockResolvedValue({
+      status: 'pass',
+      name: 'influxdb',
+      version: '2.7.0',
+    }),
+    listBuckets: vi.fn().mockResolvedValue([
+      {
+        id: 'bucket-1',
+        name: 'demo-metrics',
+        retentionSeconds: null,
+      },
+    ]),
+    listMeasurements: vi.fn().mockResolvedValue(['system']),
+    listFieldKeys: vi.fn().mockResolvedValue(['usage_user', 'message']),
+    listFieldKinds: vi
+      .fn()
+      .mockResolvedValue({ usage_user: 'number', message: 'string' }),
+    listTagKeys: vi.fn().mockResolvedValue(['host']),
+    listTagValues: vi.fn().mockResolvedValue(['alpha']),
     queryRows: vi.fn<() => Promise<InfluxRow[]>>().mockResolvedValue(rows),
   }
 
@@ -478,5 +547,35 @@ panels:
     ])
     expect(schema.tagKeys).toEqual(['host', 'region', 'service'])
     expect(schema.tagValuesByKey.host).toEqual(['alpha', 'beta', 'gamma'])
+  })
+
+  it('keeps string fields out of aggregateWindow and snapshots the adjusted query as raw yaml', async () => {
+    const dataSource = createMixedFieldTypeDataSource()
+    const workbench = useInfluxWorkbench({
+      createDataSource: () => dataSource,
+    })
+
+    await workbench.connect()
+    workbench.selectedFields.value = ['usage_user', 'message']
+    workbench.aggregateFunction.value = 'mean'
+    workbench.aggregateWindow.value = '1m'
+
+    expect(workbench.aggregationPassthroughFields.value).toEqual(['message'])
+    expect(workbench.generatedFlux.value).toContain(
+      'union(tables: [aggregated, passthrough])',
+    )
+    expect(workbench.generatedFlux.value).toContain(
+      'aggregateWindow(every: 1m, fn: mean, createEmpty: false)',
+    )
+    expect(workbench.generatedFlux.value).toContain('r._field == "message"')
+
+    const panel = workbench.createCurrentPanelSnapshot({
+      title: 'Mixed field snapshot',
+      visualization: 'scatter',
+    })
+
+    expect(panel?.visualization).toBe('scatter')
+    expect(panel?.queryMode).toBe('raw')
+    expect(panel?.rawFlux).toContain('union(tables: [aggregated, passthrough])')
   })
 })

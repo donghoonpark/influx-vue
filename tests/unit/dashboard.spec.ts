@@ -56,6 +56,38 @@ describe('dashboard helpers', () => {
     ])
   })
 
+  it('round-trips scatter panel visualizations through yaml', () => {
+    const dashboard = createDashboardDefinition({
+      panels: [
+        createDashboardPanel({
+          title: 'Scatter panel',
+          visualization: 'scatter',
+          queryMode: 'builder',
+          rawFlux: '',
+          query: {
+            bucket: 'demo-metrics',
+            measurement: 'system',
+            measurements: ['system'],
+            fields: ['usage_user'],
+            rangePreset: 'last_24h',
+            customStart: '',
+            customStop: '',
+            aggregateWindow: '15m',
+            aggregateFunction: 'mean',
+            limit: 2000,
+            tagFilters: [],
+          },
+        }),
+      ],
+    })
+
+    const yaml = serializeDashboardToYaml(dashboard)
+    const parsed = parseDashboardYaml(yaml)
+
+    expect(yaml).toContain('visualization: scatter')
+    expect(parsed.panels[0]?.visualization).toBe('scatter')
+  })
+
   it('builds flux from builder and raw panel definitions', () => {
     const builderPanel = createDashboardPanel({
       title: 'Builder panel',

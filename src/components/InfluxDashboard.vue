@@ -370,6 +370,12 @@ defineExpose<InfluxDashboardExposed>({
               :rows="rowsByPanelId[panel.id] ?? []"
             />
 
+            <InfluxResultChart
+              v-else-if="panel.visualization === 'scatter'"
+              :rows="rowsByPanelId[panel.id] ?? []"
+              visualization="scatter"
+            />
+
             <InfluxResultTable
               v-else-if="panel.visualization === 'table'"
               :rows="rowsByPanelId[panel.id] ?? []"

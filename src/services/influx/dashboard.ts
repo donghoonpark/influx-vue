@@ -13,7 +13,7 @@ import type {
 
 export const DASHBOARD_VERSION = 1 as const
 export const DASHBOARD_COLUMN_OPTIONS = [1, 2, 3] as const
-export const PANEL_VISUALIZATIONS = ['chart', 'table', 'split'] as const
+export const PANEL_VISUALIZATIONS = ['chart', 'scatter', 'table', 'split'] as const
 
 export type InfluxDashboardColumns = (typeof DASHBOARD_COLUMN_OPTIONS)[number]
 

@@ -1,5 +1,6 @@
 import type {
   AggregateFunction,
+  InfluxFieldValueKind,
   QueryBuilderState,
   RangePresetKey,
   TagFilter,
@@ -31,6 +32,10 @@ export const AGGREGATE_FUNCTIONS: AggregateFunction[] = [
 ]
 
 export const SCHEMA_LOOKBACK = '-30d'
+
+export interface BuildFluxQueryOptions {
+  fieldKinds?: Partial<Record<string, InfluxFieldValueKind>>
+}
 
 const RANGE_PRESET_LOOKUP = Object.fromEntries(
   RANGE_PRESETS.map((preset) => [preset.key, preset]),
@@ -113,6 +118,22 @@ export function buildFieldKeysFlux(
     `  predicate: (r) => r._measurement == ${quoteFluxString(measurement)},`,
     ')',
     '  |> sort()',
+  ].join('\n')
+}
+
+export function buildFieldKindsFlux(
+  bucket: string,
+  measurement: string,
+  start: string,
+): string {
+  return [
+    `from(bucket: ${quoteFluxString(bucket)})`,
+    `  |> range(start: ${start})`,
+    `  |> filter(fn: (r) => r._measurement == ${quoteFluxString(measurement)})`,
+    '  |> keep(columns: ["_time", "_field", "_value"])',
+    '  |> group(columns: ["_field"])',
+    '  |> sort(columns: ["_time"], desc: true)',
+    '  |> limit(n: 1)',
   ].join('\n')
 }
 
@@ -202,7 +223,107 @@ function buildTagFilterLine(tagFilter: TagFilter): string | null {
   return `  |> filter(fn: (r) => ${conditions})`
 }
 
-export function buildFluxQuery(state: QueryBuilderState): string {
+function buildBasePipelineLines(
+  state: QueryBuilderState,
+  measurements: string[],
+  fields: string[],
+): string[] {
+  const start = resolveRangeStart(state.rangePreset, state.customStart)
+  const stop = resolveRangeStop(state.rangePreset, state.customStop)
+  const lines = [
+    `from(bucket: ${quoteFluxString(state.bucket)})`,
+    stop
+      ? `  |> range(start: ${start}, stop: ${stop})`
+      : `  |> range(start: ${start})`,
+    buildMeasurementFilter(measurements),
+    buildFieldFilter(fields),
+  ]
+
+  state.tagFilters
+    .map(buildTagFilterLine)
+    .filter((line): line is string => Boolean(line))
+    .forEach((line) => lines.push(line))
+
+  return lines
+}
+
+function buildAggregateLine(
+  aggregateWindow: string,
+  aggregateFunction: AggregateFunction,
+): string {
+  return `  |> aggregateWindow(every: ${aggregateWindow.trim()}, fn: ${aggregateFunction}, createEmpty: false)`
+}
+
+function buildFinalQueryLines(lines: string[], limit: number): string[] {
+  const nextLines = [...lines, '  |> sort(columns: ["_time"])']
+
+  if (limit > 0) {
+    nextLines.push(`  |> limit(n: ${limit})`)
+  }
+
+  return nextLines
+}
+
+function buildStreamAssignment(name: string, lines: string[]): string[] {
+  return lines.map((line, index) => {
+    if (index === 0) {
+      return `${name} = ${line}`
+    }
+
+    return line
+  })
+}
+
+function splitFieldsForAggregation(
+  fields: string[],
+  fieldKinds?: Partial<Record<string, InfluxFieldValueKind>>,
+): {
+  numericFields: string[]
+  passthroughFields: string[]
+} {
+  if (!fieldKinds || Object.keys(fieldKinds).length === 0) {
+    return {
+      numericFields: [...fields],
+      passthroughFields: [],
+    }
+  }
+
+  return fields.reduce(
+    (result, field) => {
+      if (fieldKinds[field] === 'number') {
+        result.numericFields.push(field)
+      } else {
+        result.passthroughFields.push(field)
+      }
+
+      return result
+    },
+    {
+      numericFields: [] as string[],
+      passthroughFields: [] as string[],
+    },
+  )
+}
+
+export function resolveAggregationPassthroughFields(
+  state: QueryBuilderState,
+  options: BuildFluxQueryOptions = {},
+): string[] {
+  const shouldAggregate =
+    state.aggregateFunction !== 'none' && state.aggregateWindow.trim().length > 0
+
+  if (!shouldAggregate) {
+    return []
+  }
+
+  return splitFieldsForAggregation(state.fields, options.fieldKinds)
+    .passthroughFields
+}
+
+export function buildFluxQuery(
+  state: QueryBuilderState,
+  options: BuildFluxQueryOptions = {},
+): string {
   if (!state.bucket.trim()) {
     throw new Error('A bucket must be selected before building a query.')
   }
@@ -216,34 +337,57 @@ export function buildFluxQuery(state: QueryBuilderState): string {
     throw new Error('Select at least one field before running a query.')
   }
 
-  const start = resolveRangeStart(state.rangePreset, state.customStart)
-  const stop = resolveRangeStop(state.rangePreset, state.customStop)
+  const shouldAggregate =
+    state.aggregateFunction !== 'none' && state.aggregateWindow.trim().length > 0
+
+  if (!shouldAggregate) {
+    return buildFinalQueryLines(
+      buildBasePipelineLines(state, measurements, state.fields),
+      state.limit,
+    ).join('\n')
+  }
+
+  const { numericFields, passthroughFields } = splitFieldsForAggregation(
+    state.fields,
+    options.fieldKinds,
+  )
+
+  if (passthroughFields.length === 0) {
+    return buildFinalQueryLines(
+      [
+        ...buildBasePipelineLines(state, measurements, numericFields),
+        buildAggregateLine(state.aggregateWindow, state.aggregateFunction),
+      ],
+      state.limit,
+    ).join('\n')
+  }
+
+  if (numericFields.length === 0) {
+    return buildFinalQueryLines(
+      buildBasePipelineLines(state, measurements, passthroughFields),
+      state.limit,
+    ).join('\n')
+  }
 
   const lines = [
-    `from(bucket: ${quoteFluxString(state.bucket)})`,
-    stop
-      ? `  |> range(start: ${start}, stop: ${stop})`
-      : `  |> range(start: ${start})`,
-    buildMeasurementFilter(measurements),
-    buildFieldFilter(state.fields),
+    ...buildStreamAssignment(
+      'aggregated',
+      [
+        ...buildBasePipelineLines(state, measurements, numericFields),
+        buildAggregateLine(state.aggregateWindow, state.aggregateFunction),
+      ],
+    ),
+    '',
+    ...buildStreamAssignment(
+      'passthrough',
+      buildBasePipelineLines(state, measurements, passthroughFields),
+    ),
+    '',
+    ...buildFinalQueryLines(
+      ['union(tables: [aggregated, passthrough])'],
+      state.limit,
+    ),
   ]
-
-  state.tagFilters
-    .map(buildTagFilterLine)
-    .filter((line): line is string => Boolean(line))
-    .forEach((line) => lines.push(line))
-
-  if (state.aggregateFunction !== 'none' && state.aggregateWindow.trim()) {
-    lines.push(
-      `  |> aggregateWindow(every: ${state.aggregateWindow.trim()}, fn: ${state.aggregateFunction}, createEmpty: false)`,
-    )
-  }
-
-  lines.push('  |> sort(columns: ["_time"])')
-
-  if (state.limit > 0) {
-    lines.push(`  |> limit(n: ${state.limit})`)
-  }
 
   return lines.join('\n')
 }

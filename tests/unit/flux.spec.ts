@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildFluxQuery } from '@/services/influx/flux'
+import { buildFieldKindsFlux, buildFluxQuery } from '@/services/influx/flux'
 
 describe('buildFluxQuery', () => {
   it('builds an explorer-driven Flux query from guided selections', () => {
@@ -92,5 +92,72 @@ describe('buildFluxQuery', () => {
     expect(flux).toContain(
       'r._measurement == "system" or r._measurement == "memory"',
     )
+  })
+
+  it('splits numeric and string fields when aggregation is enabled', () => {
+    const flux = buildFluxQuery(
+      {
+        bucket: 'demo-metrics',
+        measurement: 'system',
+        measurements: ['system'],
+        fields: ['usage_user', 'message'],
+        rangePreset: 'last_1h',
+        customStart: '',
+        customStop: '',
+        aggregateWindow: '1m',
+        aggregateFunction: 'mean',
+        limit: 5000,
+        tagFilters: [],
+      },
+      {
+        fieldKinds: {
+          usage_user: 'number',
+          message: 'string',
+        },
+      },
+    )
+
+    expect(flux).toContain('aggregated = from(bucket: "demo-metrics")')
+    expect(flux).toContain('passthrough = from(bucket: "demo-metrics")')
+    expect(flux).toContain(
+      '|> aggregateWindow(every: 1m, fn: mean, createEmpty: false)',
+    )
+    expect(flux).toContain('union(tables: [aggregated, passthrough])')
+    expect(flux).toContain('r._field == "message"')
+  })
+
+  it('drops aggregateWindow entirely when all selected fields are non-numeric', () => {
+    const flux = buildFluxQuery(
+      {
+        bucket: 'demo-metrics',
+        measurement: 'system_event',
+        measurements: ['system_event'],
+        fields: ['message'],
+        rangePreset: 'last_1h',
+        customStart: '',
+        customStop: '',
+        aggregateWindow: '1m',
+        aggregateFunction: 'mean',
+        limit: 5000,
+        tagFilters: [],
+      },
+      {
+        fieldKinds: {
+          message: 'string',
+        },
+      },
+    )
+
+    expect(flux).not.toContain('aggregateWindow')
+    expect(flux).not.toContain('union(tables:')
+    expect(flux).toContain('r._field == "message"')
+  })
+
+  it('builds a field-kind sampling flux query for schema inference', () => {
+    const flux = buildFieldKindsFlux('demo-metrics', 'system', '-30d')
+
+    expect(flux).toContain('group(columns: ["_field"])')
+    expect(flux).toContain('sort(columns: ["_time"], desc: true)')
+    expect(flux).toContain('|> limit(n: 1)')
   })
 })

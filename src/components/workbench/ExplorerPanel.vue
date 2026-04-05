@@ -67,6 +67,16 @@ const queryText = computed(() =>
     : props.workbench.generatedFlux.value,
 )
 const queryValidationIssues = computed(() => validateFluxQuery(queryText.value))
+const aggregationNotice = computed(() => {
+  if (
+    props.workbench.aggregateFunction.value === 'none' ||
+    props.workbench.aggregationPassthroughFields.value.length === 0
+  ) {
+    return ''
+  }
+
+  return `String/boolean fields bypass aggregation automatically: ${props.workbench.aggregationPassthroughFields.value.join(', ')}.`
+})
 
 const customRangeValue = computed<[number, number] | null>(() => {
   if (
@@ -293,6 +303,9 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
           </NFormItem>
         </div>
       </NForm>
+      <p v-if="aggregationNotice" class="settings-note">
+        {{ aggregationNotice }}
+      </p>
     </div>
 
     <NSpin
@@ -488,6 +501,13 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.84);
+}
+
+.settings-note {
+  margin: 2px 2px 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(71, 85, 105, 0.9);
 }
 
 .settings-row {
