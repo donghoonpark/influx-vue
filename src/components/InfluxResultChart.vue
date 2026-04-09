@@ -5,7 +5,7 @@ import type { EChartsOption } from 'echarts'
 import { NEmpty } from 'naive-ui'
 import VChart from 'vue-echarts'
 
-import '@/services/charts/setup'
+import { ensureChartsRegistered } from '@/services/charts/setup'
 import {
   rowsToAnnotationSeries,
   rowsToChartSeries,
@@ -16,6 +16,8 @@ const props = defineProps<{
   rows: InfluxRow[]
   visualization?: 'line' | 'scatter'
 }>()
+
+ensureChartsRegistered()
 
 const chartSeries = computed(() => rowsToChartSeries(props.rows))
 const annotationSeries = computed(() => rowsToAnnotationSeries(props.rows))

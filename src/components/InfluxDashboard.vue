@@ -512,11 +512,15 @@ defineExpose<InfluxDashboardExposed>({
             <InfluxResultTable
               v-else-if="panel.visualization === 'table'"
               :rows="rowsByPanelId[panel.id] ?? []"
+              :download-base-name="panel.title"
             />
 
             <div v-else class="split-panel">
               <InfluxResultChart :rows="rowsByPanelId[panel.id] ?? []" />
-              <InfluxResultTable :rows="rowsByPanelId[panel.id] ?? []" />
+              <InfluxResultTable
+                :rows="rowsByPanelId[panel.id] ?? []"
+                :download-base-name="panel.title"
+              />
             </div>
           </div>
         </NSpin>

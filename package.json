@@ -68,10 +68,12 @@
     "@influxdata/influxdb-client-browser": "^1.35.0",
     "@lezer/highlight": "^1.2.3",
     "@vicons/ionicons5": "^0.13.0",
+    "apache-arrow": "^21.1.0",
     "codemirror": "^6.0.2",
     "date-fns": "^4.1.0",
     "echarts": "^6.0.0",
     "naive-ui": "^2.44.1",
+    "parquet-wasm": "^0.7.1",
     "vue-echarts": "^8.0.1",
     "yaml": "^2.8.3"
   },

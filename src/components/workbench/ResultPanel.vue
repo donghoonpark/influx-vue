@@ -1,8 +1,20 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
-import { DocumentTextOutline } from '@vicons/ionicons5'
-import { NAlert, NButton, NFlex, NSelect, NTabPane, NTabs, NTag } from 'naive-ui'
+import {
+  AnalyticsOutline,
+  DocumentTextOutline,
+  RadioButtonOffOutline,
+} from '@vicons/ionicons5'
+import {
+  NAlert,
+  NButton,
+  NButtonGroup,
+  NFlex,
+  NTabPane,
+  NTabs,
+  NTag,
+} from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
 import InfluxResultChart from '@/components/InfluxResultChart.vue'
@@ -12,7 +24,6 @@ import {
   createDashboardConnection,
   createDashboardDefinition,
   serializeDashboardToDisplayYaml,
-  type InfluxPanelVisualization,
 } from '@/services/influx/dashboard'
 import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
 
@@ -21,27 +32,29 @@ const props = defineProps<{
 }>()
 
 const resultTab = ref<'chart' | 'table' | 'yaml'>('chart')
-const panelVisualization = ref<InfluxPanelVisualization>('split')
-const panelVisualizationOptions = [
-  { label: 'Line chart', value: 'chart' },
-  { label: 'Scatter chart', value: 'scatter' },
-  { label: 'Table only', value: 'table' },
-  { label: 'Split view', value: 'split' },
-] satisfies Array<{ label: string; value: InfluxPanelVisualization }>
-const chartVisualization = computed(() =>
-  panelVisualization.value === 'scatter' ? 'scatter' : 'line',
-)
+const lastContentTab = ref<'chart' | 'table'>('chart')
+const chartVisualization = ref<'line' | 'scatter'>('line')
 
-function updatePanelVisualization(value: string | number | null) {
-  panelVisualization.value = (value ?? 'split') as InfluxPanelVisualization
-}
+watch(resultTab, (nextTab) => {
+  if (nextTab === 'chart' || nextTab === 'table') {
+    lastContentTab.value = nextTab
+  }
+})
+
+const currentPanelVisualization = computed(() => {
+  if (lastContentTab.value === 'table') {
+    return 'table' as const
+  }
+
+  return chartVisualization.value === 'scatter' ? 'scatter' : 'chart'
+})
 
 const currentDashboardDefinition = computed(() => {
   const currentPanel = props.workbench.createCurrentPanelSnapshot({
     title: props.workbench.selectedMeasurementLabel.value
       ? `${props.workbench.selectedMeasurementLabel.value} preview`
       : 'Current selection',
-    visualization: panelVisualization.value,
+    visualization: currentPanelVisualization.value,
   })
 
   return createDashboardDefinition({
@@ -119,19 +132,29 @@ const resultNotice = computed(() => {
       {{ resultNotice.message }}
     </NAlert>
 
-    <div class="result-toolbar">
-      <NSelect
-        size="small"
-        class="visualization-select"
-        :value="panelVisualization"
-        :options="panelVisualizationOptions"
-        placeholder="Panel visualization"
-        @update:value="updatePanelVisualization"
-      />
-    </div>
-
     <NTabs v-model:value="resultTab" type="line" animated>
       <NTabPane name="chart" tab="Chart">
+        <div class="result-toolbar">
+          <NButtonGroup size="small">
+            <NButton
+              secondary
+              :type="chartVisualization === 'line' ? 'primary' : 'default'"
+              :render-icon="renderNaiveIcon(AnalyticsOutline)"
+              @click="chartVisualization = 'line'"
+            >
+              Line
+            </NButton>
+            <NButton
+              secondary
+              :type="chartVisualization === 'scatter' ? 'primary' : 'default'"
+              :render-icon="renderNaiveIcon(RadioButtonOffOutline)"
+              @click="chartVisualization = 'scatter'"
+            >
+              Scatter
+            </NButton>
+          </NButtonGroup>
+        </div>
+
         <InfluxResultChart
           :rows="workbench.rows.value"
           :visualization="chartVisualization"
@@ -139,7 +162,10 @@ const resultNotice = computed(() => {
       </NTabPane>
 
       <NTabPane name="table" tab="Table">
-        <InfluxResultTable :rows="workbench.rows.value" />
+        <InfluxResultTable
+          :rows="workbench.rows.value"
+          :download-base-name="workbench.selectedMeasurementLabel.value"
+        />
       </NTabPane>
 
       <NTabPane name="yaml" tab="YAML">
@@ -183,10 +209,7 @@ const resultNotice = computed(() => {
 .result-toolbar {
   display: flex;
   justify-content: flex-end;
-}
-
-.visualization-select {
-  width: 180px;
+  margin-bottom: 8px;
 }
 
 .yaml-shell {

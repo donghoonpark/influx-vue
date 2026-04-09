@@ -9,14 +9,24 @@ import {
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 
-use([
-  LineChart,
-  ScatterChart,
-  CustomChart,
-  CanvasRenderer,
-  DataZoomComponent,
-  GridComponent,
-  LegendComponent,
-  TitleComponent,
-  TooltipComponent,
-])
+let chartsRegistered = false
+
+export function ensureChartsRegistered() {
+  if (chartsRegistered) {
+    return
+  }
+
+  use([
+    LineChart,
+    ScatterChart,
+    CustomChart,
+    CanvasRenderer,
+    DataZoomComponent,
+    GridComponent,
+    LegendComponent,
+    TitleComponent,
+    TooltipComponent,
+  ])
+
+  chartsRegistered = true
+}
