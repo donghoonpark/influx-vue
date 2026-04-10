@@ -20,11 +20,11 @@ const themeStyle = computed(() => {
     '--influx-stage-title': themeVars.value.textColor1,
     '--influx-stage-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.78 : 0.92,
+      dark ? 0.36 : 0.92,
     ),
     '--influx-stage-header-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.42 : 0.58,
+      dark ? 0.22 : 0.58,
     ),
     '--influx-stage-bg': dark
       ? withAlpha(themeVars.value.cardColor, 0.9)

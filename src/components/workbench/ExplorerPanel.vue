@@ -51,14 +51,14 @@ const themeStyle = computed(() => {
     '--influx-panel-meta': themeVars.value.textColor3,
     '--influx-panel-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.82 : 0.95,
+      dark ? 0.38 : 0.95,
     ),
     '--influx-panel-surface': dark
       ? withAlpha(themeVars.value.cardColor, 0.9)
       : withAlpha(themeVars.value.cardColor, 0.84),
     '--influx-selection-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.54 : 0.28,
+      dark ? 0.3 : 0.28,
     ),
     '--influx-selection-bg': dark
       ? withAlpha(themeVars.value.modalColor, 0.92)
@@ -82,7 +82,7 @@ const themeStyle = computed(() => {
     '--influx-selection-active-meta': 'rgba(255, 255, 255, 0.82)',
     '--influx-checkbox-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.62 : 0.8,
+      dark ? 0.34 : 0.8,
     ),
     '--influx-checkbox-bg': dark
       ? withAlpha(themeVars.value.modalColor, 0.74)
@@ -90,14 +90,14 @@ const themeStyle = computed(() => {
     '--influx-checkbox-text': themeVars.value.textColor1,
     '--influx-code-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.62 : 0.18,
+      dark ? 0.34 : 0.18,
     ),
     '--influx-code-bg': dark
       ? withAlpha(themeVars.value.baseColor, 0.98)
       : withAlpha(themeVars.value.cardColor, 0.96),
     '--influx-code-divider': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.4 : 0.18,
+      dark ? 0.22 : 0.18,
     ),
     '--influx-code-toolbar-bg': dark
       ? withAlpha(themeVars.value.textColor3, 0.08)
