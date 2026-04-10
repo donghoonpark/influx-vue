@@ -15,6 +15,7 @@ import {
   NSelect,
   NSpin,
   NSwitch,
+  useThemeVars,
 } from 'naive-ui'
 
 import type { InfluxWorkbenchController } from '@/composables/useInfluxWorkbench'
@@ -29,6 +30,7 @@ import type {
   TagFilter,
 } from '@/services/influx/types'
 import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
+import { isDarkColor, withAlpha } from '@/utils/themeColor'
 
 const props = defineProps<{
   workbench: InfluxWorkbenchController
@@ -39,6 +41,61 @@ const emit = defineEmits<{
 }>()
 
 const isQueryView = ref(false)
+const themeVars = useThemeVars()
+const themeStyle = computed(() => {
+  const dark = isDarkColor(themeVars.value.bodyColor)
+
+  return {
+    '--influx-panel-note': themeVars.value.textColor2,
+    '--influx-panel-meta': themeVars.value.textColor3,
+    '--influx-panel-border': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.82 : 0.95,
+    ),
+    '--influx-panel-surface': dark
+      ? withAlpha(themeVars.value.cardColor, 0.9)
+      : withAlpha(themeVars.value.cardColor, 0.84),
+    '--influx-selection-border': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.54 : 0.28,
+    ),
+    '--influx-selection-bg': dark
+      ? withAlpha(themeVars.value.modalColor, 0.92)
+      : themeVars.value.baseColor,
+    '--influx-selection-hover-border': withAlpha(
+      themeVars.value.infoColor,
+      dark ? 0.72 : 0.4,
+    ),
+    '--influx-selection-hover-shadow': dark
+      ? '0 10px 24px rgba(0, 0, 0, 0.24)'
+      : '0 10px 24px rgba(15, 23, 42, 0.06)',
+    '--influx-selection-active-border': withAlpha(
+      themeVars.value.successColor,
+      dark ? 0.82 : 0.55,
+    ),
+    '--influx-selection-active-bg': dark
+      ? withAlpha(themeVars.value.successColorSuppl, 0.24)
+      : withAlpha(themeVars.value.successColorSuppl, 0.92),
+    '--influx-checkbox-border': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.62 : 0.8,
+    ),
+    '--influx-checkbox-bg': dark
+      ? withAlpha(themeVars.value.modalColor, 0.74)
+      : withAlpha(themeVars.value.actionColor, 0.7),
+    '--influx-code-border': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.62 : 0.18,
+    ),
+    '--influx-code-bg': dark
+      ? withAlpha(themeVars.value.baseColor, 0.98)
+      : withAlpha(themeVars.value.cardColor, 0.96),
+    '--influx-code-divider': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.4 : 0.18,
+    ),
+  }
+})
 
 const aggregateWindowOptions = [
   '100ms',
@@ -210,7 +267,7 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 </script>
 
 <template>
-  <div class="panel-shell">
+  <div class="panel-shell" :style="themeStyle">
     <div class="panel-toolbar">
       <NFlex :size="8" align="center">
         <NSwitch :value="isQueryView" @update:value="updateQuerySwitch">
@@ -498,16 +555,16 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 
 .settings-shell {
   padding: 10px 12px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--influx-panel-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--influx-panel-surface);
 }
 
 .settings-note {
   margin: 2px 2px 0;
   font-size: 12px;
   line-height: 1.4;
-  color: rgba(71, 85, 105, 0.9);
+  color: var(--influx-panel-note);
 }
 
 .settings-row {
@@ -553,9 +610,9 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 
 .selection-item {
   width: 100%;
-  border: 1px solid rgba(148, 163, 184, 0.28);
+  border: 1px solid var(--influx-selection-border);
   border-radius: 14px;
-  background: white;
+  background: var(--influx-selection-bg);
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
@@ -567,13 +624,13 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 
 .selection-item:hover {
   transform: translateY(-1px);
-  border-color: rgba(14, 165, 233, 0.4);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  border-color: var(--influx-selection-hover-border);
+  box-shadow: var(--influx-selection-hover-shadow);
 }
 
 .selection-item.active {
-  border-color: rgba(20, 184, 166, 0.55);
-  background: rgba(236, 253, 245, 0.92);
+  border-color: var(--influx-selection-active-border);
+  background: var(--influx-selection-active-bg);
 }
 
 .item-title,
@@ -588,7 +645,7 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 .item-meta {
   margin-top: 4px;
   font-size: 0.78rem;
-  color: rgba(71, 85, 105, 0.84);
+  color: var(--influx-panel-meta);
 }
 
 .checkbox-item {
@@ -596,9 +653,9 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   align-items: center;
   gap: 10px;
   padding: 8px 10px;
-  border: 1px solid rgba(226, 232, 240, 0.8);
+  border: 1px solid var(--influx-checkbox-border);
   border-radius: 12px;
-  background: rgba(248, 250, 252, 0.7);
+  background: var(--influx-checkbox-bg);
 }
 
 .filter-stack {
@@ -620,15 +677,15 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 .code-shell {
   border-radius: 16px;
   overflow: hidden;
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  background: #0f172a;
+  border: 1px solid var(--influx-code-border);
+  background: var(--influx-code-bg);
 }
 
 .code-toolbar {
   display: flex;
   justify-content: flex-end;
   padding: 8px 10px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  border-bottom: 1px solid var(--influx-code-divider);
 }
 
 @media (max-width: 1400px) {

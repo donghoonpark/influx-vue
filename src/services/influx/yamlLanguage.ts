@@ -6,42 +6,41 @@ const yamlHighlightStyle = HighlightStyle.define(
   [
     {
       tag: tags.string,
-      color: '#86efac',
+      color: 'var(--influx-editor-token-string)',
     },
     {
       tag: tags.number,
-      color: '#fbbf24',
+      color: 'var(--influx-editor-token-number)',
     },
     {
       tag: tags.bool,
-      color: '#f9a8d4',
+      color: 'var(--influx-editor-token-atom)',
       fontWeight: '600',
     },
     {
       tag: tags.null,
-      color: '#fda4af',
+      color: 'var(--influx-editor-token-operator)',
       fontStyle: 'italic',
     },
     {
       tag: tags.atom,
-      color: '#c4b5fd',
+      color: 'var(--influx-editor-token-property)',
     },
     {
       tag: tags.propertyName,
-      color: '#7dd3fc',
+      color: 'var(--influx-editor-token-keyword)',
       fontWeight: '700',
     },
     {
       tag: tags.punctuation,
-      color: '#cbd5e1',
+      color: 'var(--influx-editor-token-bracket)',
     },
     {
       tag: tags.comment,
-      color: '#94a3b8',
+      color: 'var(--influx-editor-token-comment)',
       fontStyle: 'italic',
     },
   ],
-  { themeType: 'dark' },
 )
 
 export const yamlLanguageSupport = [

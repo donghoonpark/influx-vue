@@ -7,7 +7,16 @@ import {
   LayersOutline,
   StatsChartOutline,
 } from '@vicons/ionicons5'
-import { NAlert, NButton, NCard, NFlex, NModal, NPopover, NTag } from 'naive-ui'
+import {
+  NAlert,
+  NButton,
+  NCard,
+  NFlex,
+  NModal,
+  NPopover,
+  NTag,
+  useThemeVars,
+} from 'naive-ui'
 
 import { useInfluxWorkbench } from '@/composables/useInfluxWorkbench'
 import ConnectionPanel from '@/components/workbench/ConnectionPanel.vue'
@@ -23,6 +32,7 @@ import type {
   InfluxWorkbenchProps,
 } from '@/components/workbench/types'
 import { renderNaiveIcon } from '@/utils/renderNaiveIcon'
+import { isDarkColor, withAlpha } from '@/utils/themeColor'
 
 const props = withDefaults(defineProps<InfluxWorkbenchProps>(), {
   title: 'Influx Vue Workbench',
@@ -44,6 +54,7 @@ const workbench = useInfluxWorkbench({
   createDataSource: props.createDataSource,
   authenticateConnection: props.authenticateConnection,
 })
+const themeVars = useThemeVars()
 
 const showHero = computed(() => !props.hiddenSections.includes('hero'))
 const showConnectionPanel = computed(
@@ -65,6 +76,37 @@ const shouldAutoConnect = computed(
 const showConnectionOverlay = computed(
   () => showConnectionPanel.value && !workbench.hasConnection.value,
 )
+const themeStyle = computed(() => {
+  const dark = isDarkColor(themeVars.value.bodyColor)
+
+  return {
+    '--influx-hero-accent-success': withAlpha(
+      themeVars.value.successColor,
+      dark ? 0.26 : 0.18,
+    ),
+    '--influx-hero-accent-info': withAlpha(
+      themeVars.value.infoColor,
+      dark ? 0.22 : 0.16,
+    ),
+    '--influx-hero-surface-start': dark
+      ? withAlpha(themeVars.value.cardColor, 0.98)
+      : withAlpha(themeVars.value.baseColor, 0.96),
+    '--influx-hero-surface-end': dark
+      ? withAlpha(themeVars.value.modalColor, 0.98)
+      : withAlpha(themeVars.value.cardColor, 0.98),
+    '--influx-shell-muted': themeVars.value.textColor2,
+    '--influx-shell-text': themeVars.value.textColor1,
+    '--influx-overlay-backdrop': dark
+      ? withAlpha(themeVars.value.bodyColor, 0.76)
+      : withAlpha(themeVars.value.baseColor, 0.82),
+    '--influx-connection-shadow': dark
+      ? '0 28px 90px rgba(0, 0, 0, 0.42)'
+      : '0 28px 90px rgba(15, 23, 42, 0.16)',
+    '--influx-floating-shadow': dark
+      ? '0 20px 48px rgba(0, 0, 0, 0.32)'
+      : '0 20px 48px rgba(15, 23, 42, 0.18)',
+  }
+})
 
 function currentConnection(): InfluxConnectionConfig {
   const authMethod = workbench.connection.authMethod
@@ -178,7 +220,7 @@ defineExpose<InfluxWorkbenchExposed>({
 </script>
 
 <template>
-  <div class="workbench-shell">
+  <div class="workbench-shell" :style="themeStyle">
     <NCard v-if="showHero" class="hero-card" :bordered="false">
       <div class="hero-topline">
         <NFlex :size="8" align="center" wrap>
@@ -339,18 +381,18 @@ defineExpose<InfluxWorkbenchExposed>({
   background:
     radial-gradient(
       circle at top right,
-      rgba(34, 197, 94, 0.18),
+      var(--influx-hero-accent-success),
       transparent 24rem
     ),
     radial-gradient(
       circle at top left,
-      rgba(14, 165, 233, 0.16),
+      var(--influx-hero-accent-info),
       transparent 18rem
     ),
     linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.96),
-      rgba(247, 251, 252, 0.98)
+      var(--influx-hero-surface-start),
+      var(--influx-hero-surface-end)
     );
 }
 
@@ -371,7 +413,7 @@ defineExpose<InfluxWorkbenchExposed>({
 
 .popover-content p {
   margin: 6px 0 0;
-  color: rgba(71, 85, 105, 0.88);
+  color: var(--influx-shell-muted);
 }
 
 .stats-popover {
@@ -418,7 +460,7 @@ defineExpose<InfluxWorkbenchExposed>({
 .query-error-message {
   margin: 10px 0 0;
   white-space: pre-wrap;
-  color: rgba(51, 65, 85, 0.96);
+  color: var(--influx-shell-text);
 }
 
 .connection-overlay {
@@ -435,7 +477,7 @@ defineExpose<InfluxWorkbenchExposed>({
   position: absolute;
   inset: 0;
   border-radius: 32px;
-  background: rgba(248, 250, 252, 0.82);
+  background: var(--influx-overlay-backdrop);
   backdrop-filter: blur(10px);
 }
 
@@ -444,7 +486,7 @@ defineExpose<InfluxWorkbenchExposed>({
   z-index: 1;
   width: min(680px, 100%);
   border-radius: 26px;
-  box-shadow: 0 28px 90px rgba(15, 23, 42, 0.16);
+  box-shadow: var(--influx-connection-shadow);
 }
 
 .floating-status {
@@ -453,7 +495,7 @@ defineExpose<InfluxWorkbenchExposed>({
   bottom: 24px;
   z-index: 30;
   width: min(420px, calc(100vw - 32px));
-  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+  box-shadow: var(--influx-floating-shadow);
 }
 
 .floating-status-enter-active,

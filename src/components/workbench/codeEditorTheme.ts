@@ -4,7 +4,7 @@ export const codeEditorTheme = EditorView.theme(
   {
     '&': {
       backgroundColor: 'transparent',
-      color: '#e2e8f0',
+      color: 'var(--influx-editor-fg)',
       fontSize: '0.94rem',
     },
     '&.cm-focused': {
@@ -13,7 +13,7 @@ export const codeEditorTheme = EditorView.theme(
     '.cm-content': {
       minHeight: '300px',
       padding: '12px 14px',
-      caretColor: '#f8fafc',
+      caretColor: 'var(--influx-editor-caret)',
       fontFamily: "'SFMono-Regular', 'Consolas', 'Menlo', monospace",
       lineHeight: '1.6',
     },
@@ -22,46 +22,45 @@ export const codeEditorTheme = EditorView.theme(
       fontFamily: "'SFMono-Regular', 'Consolas', 'Menlo', monospace",
     },
     '.cm-selectionBackground, .cm-content ::selection': {
-      backgroundColor: 'rgba(56, 189, 248, 0.26)',
+      backgroundColor: 'var(--influx-editor-selection)',
     },
     '.cm-activeLine': {
-      backgroundColor: 'rgba(148, 163, 184, 0.08)',
+      backgroundColor: 'var(--influx-editor-active-line)',
     },
     '.cm-cursor': {
-      borderLeftColor: '#f8fafc',
+      borderLeftColor: 'var(--influx-editor-caret)',
     },
     '.cm-tooltip-autocomplete': {
-      border: '1px solid rgba(148, 163, 184, 0.24)',
-      backgroundColor: 'rgba(15, 23, 42, 0.98)',
-      color: '#e2e8f0',
+      border: '1px solid var(--influx-editor-popover-border)',
+      backgroundColor: 'var(--influx-editor-popover-bg)',
+      color: 'var(--influx-editor-fg)',
     },
     '.cm-tooltip-autocomplete ul li[aria-selected]': {
-      backgroundColor: 'rgba(14, 165, 233, 0.22)',
-      color: '#f8fafc',
+      backgroundColor: 'var(--influx-editor-popover-selected-bg)',
+      color: 'var(--influx-editor-popover-selected-fg)',
     },
     '.cm-completionDetail': {
-      color: 'rgba(148, 163, 184, 0.94)',
+      color: 'var(--influx-editor-muted)',
     },
     '.cm-completionLabel': {
-      color: '#f8fafc',
+      color: 'var(--influx-editor-fg)',
     },
     '.cm-diagnostic': {
       padding: '4px 8px',
       borderRadius: '10px',
-      backgroundColor: 'rgba(15, 23, 42, 0.98)',
-      color: '#e2e8f0',
-      border: '1px solid rgba(148, 163, 184, 0.24)',
+      backgroundColor: 'var(--influx-editor-popover-bg)',
+      color: 'var(--influx-editor-fg)',
+      border: '1px solid var(--influx-editor-popover-border)',
     },
     '.cm-diagnostic-error': {
-      borderLeft: '3px solid rgba(248, 113, 113, 0.9)',
+      borderLeft: '3px solid var(--influx-editor-error)',
     },
     '.cm-diagnosticText': {
-      color: '#e2e8f0',
+      color: 'var(--influx-editor-fg)',
     },
     '.cm-panels': {
-      backgroundColor: 'rgba(15, 23, 42, 0.96)',
-      color: '#e2e8f0',
+      backgroundColor: 'var(--influx-editor-panels-bg)',
+      color: 'var(--influx-editor-fg)',
     },
   },
-  { dark: true },
 )

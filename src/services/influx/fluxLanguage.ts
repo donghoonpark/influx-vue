@@ -131,45 +131,44 @@ const fluxHighlightStyle = HighlightStyle.define(
   [
     {
       tag: tags.keyword,
-      color: '#7dd3fc',
+      color: 'var(--influx-editor-token-keyword)',
       fontWeight: '700',
     },
     {
       tag: tags.atom,
-      color: '#f9a8d4',
+      color: 'var(--influx-editor-token-atom)',
       fontWeight: '600',
     },
     {
       tag: tags.string,
-      color: '#86efac',
+      color: 'var(--influx-editor-token-string)',
     },
     {
       tag: tags.number,
-      color: '#fbbf24',
+      color: 'var(--influx-editor-token-number)',
     },
     {
       tag: tags.comment,
-      color: '#94a3b8',
+      color: 'var(--influx-editor-token-comment)',
       fontStyle: 'italic',
     },
     {
       tag: tags.operator,
-      color: '#fda4af',
+      color: 'var(--influx-editor-token-operator)',
     },
     {
       tag: tags.propertyName,
-      color: '#c4b5fd',
+      color: 'var(--influx-editor-token-property)',
     },
     {
       tag: tags.variableName,
-      color: '#e2e8f0',
+      color: 'var(--influx-editor-token-variable)',
     },
     {
       tag: tags.bracket,
-      color: '#cbd5e1',
+      color: 'var(--influx-editor-token-bracket)',
     },
   ],
-  { themeType: 'dark' },
 )
 
 export const fluxLanguageSupport = [

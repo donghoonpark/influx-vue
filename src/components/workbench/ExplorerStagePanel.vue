@@ -1,15 +1,34 @@
 <script setup lang="ts">
-import { NTag } from 'naive-ui'
+import { computed } from 'vue'
+
+import { NTag, useThemeVars } from 'naive-ui'
+
+import { isDarkColor, withAlpha } from '@/utils/themeColor'
 
 defineProps<{
   title: string
   count?: number | string
   countType?: 'default' | 'primary' | 'info' | 'success' | 'warning' | 'error'
 }>()
+
+const themeVars = useThemeVars()
+const themeStyle = computed(() => {
+  const dark = isDarkColor(themeVars.value.bodyColor)
+
+  return {
+    '--influx-stage-border': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.78 : 0.92,
+    ),
+    '--influx-stage-bg': dark
+      ? withAlpha(themeVars.value.cardColor, 0.9)
+      : withAlpha(themeVars.value.cardColor, 0.84),
+  }
+})
 </script>
 
 <template>
-  <section class="stage-panel">
+  <section class="stage-panel" :style="themeStyle">
     <div class="stage-header">
       <strong>{{ title }}</strong>
       <div class="stage-meta">
@@ -37,9 +56,9 @@ defineProps<{
   gap: 10px;
   min-height: 360px;
   padding: 10px 12px;
-  border: 1px solid rgba(226, 232, 240, 0.92);
+  border: 1px solid var(--influx-stage-border);
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.84);
+  background: var(--influx-stage-bg);
 }
 
 .stage-header {
