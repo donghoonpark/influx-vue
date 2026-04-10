@@ -1,6 +1,6 @@
 {
   "name": "influx-vue",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "A Vue 3 + TypeScript workbench for exploring InfluxDB buckets, schema, Flux queries, and visualizations.",
   "license": "Apache-2.0",
   "repository": {
