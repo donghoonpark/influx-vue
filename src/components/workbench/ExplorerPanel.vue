@@ -73,15 +73,13 @@ const themeStyle = computed(() => {
       : '0 10px 24px rgba(15, 23, 42, 0.06)',
     '--influx-selection-active-border': withAlpha(
       themeVars.value.successColor,
-      dark ? 0.82 : 0.55,
+      dark ? 0.9 : 0.82,
     ),
     '--influx-selection-active-bg': dark
-      ? withAlpha(themeVars.value.successColorSuppl, 0.24)
-      : withAlpha(themeVars.value.successColorSuppl, 0.92),
-    '--influx-selection-active-text': themeVars.value.textColor1,
-    '--influx-selection-active-meta': dark
-      ? withAlpha(themeVars.value.textColor2, 0.94)
-      : themeVars.value.textColor2,
+      ? withAlpha(themeVars.value.successColor, 0.74)
+      : themeVars.value.successColor,
+    '--influx-selection-active-text': '#fff',
+    '--influx-selection-active-meta': 'rgba(255, 255, 255, 0.82)',
     '--influx-checkbox-border': withAlpha(
       themeVars.value.borderColor,
       dark ? 0.62 : 0.8,
