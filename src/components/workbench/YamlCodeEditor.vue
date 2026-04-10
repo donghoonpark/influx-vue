@@ -66,7 +66,7 @@ const editorThemeStyle = computed(() => {
     '--influx-editor-token-bracket': dark ? '#cbd5e1' : '#475569',
     '--influx-yaml-shell-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.82 : 0.92,
+      dark ? 0.34 : 0.92,
     ),
     '--influx-yaml-shell-bg': dark
       ? `linear-gradient(180deg, ${withAlpha(themeVars.value.baseColor, 0.98)}, ${withAlpha(themeVars.value.modalColor, 0.98)})`
@@ -77,7 +77,7 @@ const editorThemeStyle = computed(() => {
     '--influx-yaml-gutter-fg': themeVars.value.textColor3,
     '--influx-yaml-gutter-border': withAlpha(
       themeVars.value.borderColor,
-      dark ? 0.72 : 0.82,
+      dark ? 0.26 : 0.82,
     ),
     '--influx-yaml-gutter-active-bg': dark
       ? withAlpha(themeVars.value.modalColor, 0.92)
