@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import {
   NAlert,
   NConfigProvider,
   NDialogProvider,
+  NFlex,
   NLayout,
   NLayoutContent,
   NMessageProvider,
+  NSwitch,
   NTabPane,
   NTabs,
   NText,
+  darkTheme,
 } from 'naive-ui'
 
 import {
@@ -25,6 +28,12 @@ const demoOrigin =
   typeof window === 'undefined'
     ? 'http://127.0.0.1:4173'
     : window.location.origin
+const demoThemeStorageKey = 'influx-vue-demo-theme'
+const isDarkTheme = ref(
+  typeof window !== 'undefined'
+    ? window.localStorage.getItem(demoThemeStorageKey) === 'dark'
+    : false,
+)
 
 const demoConnection = computed(() => ({
   url: demoOrigin,
@@ -123,14 +132,40 @@ const demoDashboardYaml = computed(() =>
     }),
   ),
 )
+
+watch(isDarkTheme, (enabled) => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(
+    demoThemeStorageKey,
+    enabled ? 'dark' : 'light',
+  )
+})
 </script>
 
 <template>
-  <NConfigProvider>
+  <NConfigProvider :theme="isDarkTheme ? darkTheme : undefined">
     <NDialogProvider>
       <NMessageProvider>
-        <NLayout class="demo-layout">
+        <NLayout
+          class="demo-layout"
+          :class="{ 'demo-layout--dark': isDarkTheme }"
+        >
           <NLayoutContent content-style="padding: 32px 20px 56px;">
+            <div class="demo-toolbar">
+              <NFlex justify="space-between" align="center" wrap :size="[12, 12]">
+                <NText depth="3">
+                  Toggle the Naive UI dark theme to verify workbench styling.
+                </NText>
+                <NFlex align="center" :size="8">
+                  <NText depth="3">Dark theme</NText>
+                  <NSwitch v-model:value="isDarkTheme" />
+                </NFlex>
+              </NFlex>
+            </div>
+
             <NTabs type="line" animated>
               <NTabPane name="workbench" tab="Workbench">
                 <NAlert type="info" :bordered="false" class="demo-note">
@@ -166,6 +201,10 @@ const demoDashboardYaml = computed(() =>
 </template>
 
 <style scoped>
+.demo-toolbar {
+  margin-bottom: 18px;
+}
+
 .demo-note {
   margin-bottom: 16px;
 }
