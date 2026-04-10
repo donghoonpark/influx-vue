@@ -46,6 +46,7 @@ const themeStyle = computed(() => {
   const dark = isDarkColor(themeVars.value.bodyColor)
 
   return {
+    '--influx-panel-text': themeVars.value.textColor1,
     '--influx-panel-note': themeVars.value.textColor2,
     '--influx-panel-meta': themeVars.value.textColor3,
     '--influx-panel-border': withAlpha(
@@ -62,6 +63,7 @@ const themeStyle = computed(() => {
     '--influx-selection-bg': dark
       ? withAlpha(themeVars.value.modalColor, 0.92)
       : themeVars.value.baseColor,
+    '--influx-selection-text': themeVars.value.textColor1,
     '--influx-selection-hover-border': withAlpha(
       themeVars.value.infoColor,
       dark ? 0.72 : 0.4,
@@ -76,6 +78,10 @@ const themeStyle = computed(() => {
     '--influx-selection-active-bg': dark
       ? withAlpha(themeVars.value.successColorSuppl, 0.24)
       : withAlpha(themeVars.value.successColorSuppl, 0.92),
+    '--influx-selection-active-text': themeVars.value.textColor1,
+    '--influx-selection-active-meta': dark
+      ? withAlpha(themeVars.value.textColor2, 0.94)
+      : themeVars.value.textColor2,
     '--influx-checkbox-border': withAlpha(
       themeVars.value.borderColor,
       dark ? 0.62 : 0.8,
@@ -83,6 +89,7 @@ const themeStyle = computed(() => {
     '--influx-checkbox-bg': dark
       ? withAlpha(themeVars.value.modalColor, 0.74)
       : withAlpha(themeVars.value.actionColor, 0.7),
+    '--influx-checkbox-text': themeVars.value.textColor1,
     '--influx-code-border': withAlpha(
       themeVars.value.borderColor,
       dark ? 0.62 : 0.18,
@@ -94,6 +101,10 @@ const themeStyle = computed(() => {
       themeVars.value.borderColor,
       dark ? 0.4 : 0.18,
     ),
+    '--influx-code-toolbar-bg': dark
+      ? withAlpha(themeVars.value.textColor3, 0.08)
+      : withAlpha(themeVars.value.textColor3, 0.04),
+    '--influx-code-toolbar-text': themeVars.value.textColor2,
   }
 })
 
@@ -544,6 +555,7 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+  color: var(--influx-panel-text);
 }
 
 .panel-toolbar {
@@ -558,6 +570,11 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   border: 1px solid var(--influx-panel-border);
   border-radius: 16px;
   background: var(--influx-panel-surface);
+}
+
+.settings-shell :deep(.n-form-item-label__text) {
+  color: var(--influx-panel-note);
+  font-weight: 600;
 }
 
 .settings-note {
@@ -613,6 +630,7 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   border: 1px solid var(--influx-selection-border);
   border-radius: 14px;
   background: var(--influx-selection-bg);
+  color: var(--influx-selection-text);
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
@@ -631,6 +649,7 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 .selection-item.active {
   border-color: var(--influx-selection-active-border);
   background: var(--influx-selection-active-bg);
+  color: var(--influx-selection-active-text);
 }
 
 .item-title,
@@ -640,12 +659,17 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
 
 .item-title {
   font-weight: 700;
+  color: inherit;
 }
 
 .item-meta {
   margin-top: 4px;
   font-size: 0.78rem;
   color: var(--influx-panel-meta);
+}
+
+.selection-item.active .item-meta {
+  color: var(--influx-selection-active-meta);
 }
 
 .checkbox-item {
@@ -656,6 +680,10 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   border: 1px solid var(--influx-checkbox-border);
   border-radius: 12px;
   background: var(--influx-checkbox-bg);
+}
+
+.checkbox-item span {
+  color: var(--influx-checkbox-text);
 }
 
 .filter-stack {
@@ -686,6 +714,8 @@ function loadCompletionSchema(request: FluxAutocompleteRequest) {
   justify-content: flex-end;
   padding: 8px 10px;
   border-bottom: 1px solid var(--influx-code-divider);
+  background: var(--influx-code-toolbar-bg);
+  color: var(--influx-code-toolbar-text);
 }
 
 @media (max-width: 1400px) {

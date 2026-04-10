@@ -16,9 +16,15 @@ const themeStyle = computed(() => {
   const dark = isDarkColor(themeVars.value.bodyColor)
 
   return {
+    '--influx-stage-text': themeVars.value.textColor1,
+    '--influx-stage-title': themeVars.value.textColor1,
     '--influx-stage-border': withAlpha(
       themeVars.value.borderColor,
       dark ? 0.78 : 0.92,
+    ),
+    '--influx-stage-header-border': withAlpha(
+      themeVars.value.borderColor,
+      dark ? 0.42 : 0.58,
     ),
     '--influx-stage-bg': dark
       ? withAlpha(themeVars.value.cardColor, 0.9)
@@ -59,6 +65,7 @@ const themeStyle = computed(() => {
   border: 1px solid var(--influx-stage-border);
   border-radius: 16px;
   background: var(--influx-stage-bg);
+  color: var(--influx-stage-text);
 }
 
 .stage-header {
@@ -66,6 +73,13 @@ const themeStyle = computed(() => {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--influx-stage-header-border);
+}
+
+.stage-header strong {
+  color: var(--influx-stage-title);
+  font-size: 0.95rem;
 }
 
 .stage-meta {
